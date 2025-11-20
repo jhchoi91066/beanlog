@@ -163,21 +163,25 @@ const HomeScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      {/* Location filter buttons */}
-      {renderLocationFilters()}
+      {/* Location filter buttons - Fixed at top */}
+      <View style={styles.filterWrapper}>
+        {renderLocationFilters()}
+      </View>
 
       {/* Cafe list */}
-      {cafes.length === 0 ? (
-        <EmptyState message="등록된 카페가 없습니다" />
-      ) : (
-        <FlatList
-          data={cafes}
-          renderItem={renderCafeItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
+      <View style={styles.listWrapper}>
+        {cafes.length === 0 ? (
+          <EmptyState message="등록된 카페가 없습니다" />
+        ) : (
+          <FlatList
+            data={cafes}
+            renderItem={renderCafeItem}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+          />
+        )}
+      </View>
     </View>
   );
 };
@@ -187,12 +191,28 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
+  // Filter wrapper - keeps filter at top
+  filterWrapper: {
+    zIndex: 10,
+    elevation: 5,
+    backgroundColor: Colors.background,
+  },
+  // List wrapper - prevents overlap with filter
+  listWrapper: {
+    flex: 1,
+    zIndex: 1,
+  },
   // Filter section styles
   filterScrollView: {
     flexGrow: 0,
     borderBottomWidth: 1,
     borderBottomColor: Colors.divider,
     backgroundColor: Colors.background,
+    // iOS shadow
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   filterContainer: {
     paddingHorizontal: 16,

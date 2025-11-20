@@ -13,7 +13,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   Modal,
+  Image,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography } from '../constants';
 import StarRating from '../components/StarRating';
 import Tag from '../components/Tag';
@@ -21,8 +24,9 @@ import CustomButton from '../components/CustomButton';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Slider from '../components/Slider';
 import { useAuth } from '../contexts/AuthContext';
-import { createReview } from '../services/reviewService';
+import { createReview, updateReview } from '../services/reviewService';
 import { getAllCafes } from '../services/cafeService';
+import { uploadMultipleReviewImages } from '../services/imageService';
 
 // F-2.2: Basic Mode - Taste Tags
 const BASIC_TAGS = ['상큼한', '고소한', '달콤한', '묵직한', '부드러운', '꽃향기'];
@@ -54,6 +58,9 @@ const WriteReviewScreen = ({ navigation, route }) => {
   const [selectedAdvancedTags, setSelectedAdvancedTags] = useState([]);
   const [roasting, setRoasting] = useState(null);
 
+  // v0.2: F-PHOTO - Photo Upload State
+  const [selectedPhotos, setSelectedPhotos] = useState([]);
+
   // UI State
   const [submitting, setSubmitting] = useState(false);
   const [validationError, setValidationError] = useState('');
@@ -64,9 +71,28 @@ const WriteReviewScreen = ({ navigation, route }) => {
   }, []);
 
   // Load cafe from route params if provided (for navigation from cafe detail)
+  // v0.2: F-EDIT - Also handle edit mode
   useEffect(() => {
     if (route.params?.cafe) {
       setSelectedCafe(route.params.cafe);
+    }
+
+    // v0.2: F-EDIT - Pre-populate form for editing
+    if (route.params?.editMode && route.params?.reviewData) {
+      const review = route.params.reviewData;
+      setRating(review.rating || 0);
+      setSelectedBasicTags(review.basicTags || []);
+      setComment(review.comment || '');
+      setSelectedPhotos(review.photoUrls?.map(url => ({ uri: url })) || []);
+
+      // Advanced mode fields
+      if (review.acidity || review.body || review.advancedTags || review.roasting) {
+        setShowAdvancedMode(true);
+        setAcidity(review.acidity || 3);
+        setBody(review.body || 3);
+        setSelectedAdvancedTags(review.advancedTags || []);
+        setRoasting(review.roasting || null);
+      }
     }
   }, [route.params]);
 
@@ -111,6 +137,58 @@ const WriteReviewScreen = ({ navigation, route }) => {
   };
 
   /**
+   * v0.2: F-PHOTO - Request camera/library permissions
+   */
+  const requestPermissions = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('권한 필요', '사진을 선택하려면 갤러리 접근 권한이 필요합니다.');
+      return false;
+    }
+    return true;
+  };
+
+  /**
+   * v0.2: F-PHOTO - Pick photos from gallery
+   */
+  const pickPhotos = async () => {
+    // Check if we've reached the limit
+    if (selectedPhotos.length >= 3) {
+      Alert.alert('사진 제한', '최대 3장까지 업로드할 수 있습니다.');
+      return;
+    }
+
+    // Request permissions
+    const hasPermission = await requestPermissions();
+    if (!hasPermission) return;
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsMultipleSelection: false,
+        quality: 0.8,
+        allowsEditing: true,
+        aspect: [1, 1],
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const newPhoto = result.assets[0];
+        setSelectedPhotos([...selectedPhotos, newPhoto]);
+      }
+    } catch (error) {
+      console.error('Error picking photo:', error);
+      Alert.alert('오류', '사진을 선택할 수 없습니다.');
+    }
+  };
+
+  /**
+   * v0.2: F-PHOTO - Remove selected photo
+   */
+  const removePhoto = (index) => {
+    setSelectedPhotos(selectedPhotos.filter((_, i) => i !== index));
+  };
+
+  /**
    * F-2.4: Validate form data before submission
    */
   const validateForm = () => {
@@ -143,6 +221,7 @@ const WriteReviewScreen = ({ navigation, route }) => {
 
   /**
    * F-2.4: Submit review to Firestore
+   * v0.2: F-PHOTO - Include photo upload
    */
   const handleSubmit = async () => {
     // Clear previous validation errors
@@ -173,8 +252,41 @@ const WriteReviewScreen = ({ navigation, route }) => {
         reviewData.roasting = roasting;
       }
 
-      // Submit to Firestore
-      await createReview(reviewData);
+      // v0.2: F-PHOTO - Upload photos if any selected
+      if (selectedPhotos.length > 0) {
+        try {
+          const photoUris = selectedPhotos.map(photo => photo.uri);
+          const uploadedUrls = await uploadMultipleReviewImages(photoUris, user.uid);
+          reviewData.photoUrls = uploadedUrls;
+        } catch (photoError) {
+          console.error('Photo upload error:', photoError);
+          Alert.alert(
+            '사진 업로드 실패',
+            '사진 업로드에 실패했습니다. 사진 없이 리뷰를 작성하시겠습니까?',
+            [
+              { text: '취소', style: 'cancel', onPress: () => setSubmitting(false) },
+              { text: '계속', onPress: async () => {
+                // Continue without photos
+                reviewData.photoUrls = [];
+              }}
+            ]
+          );
+          return; // Wait for user decision
+        }
+      } else {
+        reviewData.photoUrls = [];
+      }
+
+      // v0.2: F-EDIT - Check if edit mode or create mode
+      const isEditMode = route.params?.editMode && route.params?.reviewId;
+
+      if (isEditMode) {
+        // Update existing review
+        await updateReview(route.params.reviewId, reviewData);
+      } else {
+        // Create new review
+        await createReview(reviewData);
+      }
 
       // Reset form first
       const cafeId = selectedCafe.id;
@@ -183,8 +295,10 @@ const WriteReviewScreen = ({ navigation, route }) => {
 
       // Show success message and navigate
       Alert.alert(
-        '리뷰 작성 완료! 🎉',
-        `${cafeName}에 대한 리뷰가 성공적으로 작성되었습니다.`,
+        isEditMode ? '리뷰 수정 완료! ✏️' : '리뷰 작성 완료! 🎉',
+        isEditMode
+          ? `${cafeName}에 대한 리뷰가 성공적으로 수정되었습니다.`
+          : `${cafeName}에 대한 리뷰가 성공적으로 작성되었습니다.`,
         [
           {
             text: '리뷰 보러가기',
@@ -200,13 +314,19 @@ const WriteReviewScreen = ({ navigation, route }) => {
             },
           },
           {
-            text: '홈으로',
+            text: isEditMode ? '마이페이지로' : '홈으로',
             style: 'cancel',
             onPress: () => {
-              navigation.navigate('MainTabs', {
-                screen: 'Home',
-                params: { screen: 'HomeList' }
-              });
+              if (isEditMode) {
+                navigation.navigate('MainTabs', {
+                  screen: 'MyPage'
+                });
+              } else {
+                navigation.navigate('MainTabs', {
+                  screen: 'Home',
+                  params: { screen: 'HomeList' }
+                });
+              }
             },
           },
         ]
@@ -231,6 +351,7 @@ const WriteReviewScreen = ({ navigation, route }) => {
     setBody(3);
     setSelectedAdvancedTags([]);
     setRoasting(null);
+    setSelectedPhotos([]); // v0.2: F-PHOTO
     setValidationError('');
   };
 
@@ -350,6 +471,38 @@ const WriteReviewScreen = ({ navigation, route }) => {
             multiline
           />
           <Text style={styles.characterCount}>{comment.length}/100</Text>
+        </View>
+
+        {/* v0.2: F-PHOTO - Photo Upload Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>사진 (선택)</Text>
+          <Text style={styles.sectionSubtitle}>최대 3장까지 업로드 가능</Text>
+
+          <View style={styles.photosContainer}>
+            {/* Selected Photos */}
+            {selectedPhotos.map((photo, index) => (
+              <View key={index} style={styles.photoWrapper}>
+                <Image source={{ uri: photo.uri }} style={styles.photoPreview} />
+                <TouchableOpacity
+                  style={styles.photoRemoveButton}
+                  onPress={() => removePhoto(index)}
+                >
+                  <Ionicons name="close-circle" size={24} color={Colors.error} />
+                </TouchableOpacity>
+              </View>
+            ))}
+
+            {/* Add Photo Button */}
+            {selectedPhotos.length < 3 && (
+              <TouchableOpacity
+                style={styles.photoAddButton}
+                onPress={pickPhotos}
+              >
+                <Ionicons name="camera" size={32} color={Colors.textSecondary} />
+                <Text style={styles.photoAddText}>사진 추가</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         {/* F-2.3: Advanced Mode Toggle */}
@@ -638,6 +791,48 @@ const styles = StyleSheet.create({
   cafeLocation: {
     ...Typography.caption,
     color: Colors.textSecondary,
+  },
+
+  // v0.2: F-PHOTO - Photo Upload Styles
+  photosContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  photoWrapper: {
+    position: 'relative',
+    width: 80,
+    height: 80,
+  },
+  photoPreview: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: Colors.divider,
+  },
+  photoRemoveButton: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: Colors.background,
+    borderRadius: 12,
+  },
+  photoAddButton: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+  },
+  photoAddText: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+    marginTop: 4,
   },
 });
 

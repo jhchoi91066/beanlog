@@ -8,9 +8,11 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  Platform,
+  Image,
+  TouchableOpacity,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors, Typography } from '../constants';
 import {
   LoadingSpinner,
@@ -20,8 +22,9 @@ import {
   StarRating,
 } from '../components';
 import { useAuth } from '../contexts/AuthContext';
-import { getReviewsByUser } from '../services/reviewService';
+import { getReviewsByUser, deleteReview } from '../services/reviewService';
 import { getCafeById } from '../services/cafeService';
+import { Ionicons } from '@expo/vector-icons';
 
 const MyPageScreen = ({ navigation }) => {
   const { user, signOut } = useAuth();
@@ -158,64 +161,47 @@ const MyPageScreen = ({ navigation }) => {
    * Handle logout button press
    * F-3.1: Show confirmation alert before logout
    */
-  const handleLogout = () => {
-    Alert.alert(
-      '로그아웃',
-      '정말 로그아웃 하시겠습니까?',
-      [
-        {
-          text: '취소',
-          style: 'cancel',
-        },
-        {
-          text: '로그아웃',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await signOut();
-            } catch (error) {
-              console.error('Error signing out:', error);
-              Alert.alert('오류', '로그아웃에 실패했습니다. 다시 시도해주세요.');
-            }
-          },
-        },
-      ],
-      { cancelable: true }
-    );
-  };
+  const handleLogout = async () => {
+    console.log('🔴 handleLogout called'); // Debug log
 
-  /**
-   * Handle onboarding reset button press
-   * Clear hasSeenOnboarding flag to see onboarding again
-   */
-  const handleResetOnboarding = () => {
-    Alert.alert(
-      '온보딩 초기화',
-      '온보딩 화면을 다시 보시겠습니까? 로그아웃됩니다.',
-      [
-        {
-          text: '취소',
-          style: 'cancel',
-        },
-        {
-          text: '초기화',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // Clear onboarding flag
-              await AsyncStorage.removeItem('hasSeenOnboarding');
-              // Sign out user
-              await signOut();
-              Alert.alert('완료', '온보딩이 초기화되었습니다. 앱을 다시 시작해주세요.');
-            } catch (error) {
-              console.error('Error resetting onboarding:', error);
-              Alert.alert('오류', '초기화에 실패했습니다. 다시 시도해주세요.');
-            }
+    // Web compatibility: use window.confirm for web, Alert for native
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm('정말 로그아웃 하시겠습니까?');
+      if (confirmed) {
+        try {
+          console.log('🔴 Signing out...'); // Debug log
+          await signOut();
+        } catch (error) {
+          console.error('Error signing out:', error);
+          window.alert('로그아웃에 실패했습니다. 다시 시도해주세요.');
+        }
+      }
+    } else {
+      Alert.alert(
+        '로그아웃',
+        '정말 로그아웃 하시겠습니까?',
+        [
+          {
+            text: '취소',
+            style: 'cancel',
           },
-        },
-      ],
-      { cancelable: true }
-    );
+          {
+            text: '로그아웃',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                console.log('🔴 Signing out...'); // Debug log
+                await signOut();
+              } catch (error) {
+                console.error('Error signing out:', error);
+                Alert.alert('오류', '로그아웃에 실패했습니다. 다시 시도해주세요.');
+              }
+            },
+          },
+        ],
+        { cancelable: true }
+      );
+    }
   };
 
   /**
@@ -226,6 +212,50 @@ const MyPageScreen = ({ navigation }) => {
     if (review.cafeId && navigation) {
       navigation.navigate('CafeDetail', { cafeId: review.cafeId });
     }
+  };
+
+  /**
+   * v0.2: F-EDIT - Handle review edit
+   */
+  const handleEditReview = (review) => {
+    // Navigate to WriteReview screen with review data for editing
+    navigation.navigate('WriteReview', {
+      editMode: true,
+      reviewId: review.id,
+      reviewData: review,
+      cafe: { id: review.cafeId, name: review.cafeName }
+    });
+  };
+
+  /**
+   * v0.2: F-EDIT - Handle review delete
+   */
+  const handleDeleteReview = (review) => {
+    Alert.alert(
+      '리뷰 삭제',
+      '정말로 이 리뷰를 삭제하시겠습니까?',
+      [
+        {
+          text: '취소',
+          style: 'cancel'
+        },
+        {
+          text: '삭제',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteReview(review.id);
+              Alert.alert('삭제 완료', '리뷰가 성공적으로 삭제되었습니다.');
+              // Reload reviews
+              loadUserReviews();
+            } catch (error) {
+              console.error('Error deleting review:', error);
+              Alert.alert('오류', '리뷰 삭제에 실패했습니다. 다시 시도해주세요.');
+            }
+          }
+        }
+      ]
+    );
   };
 
   /**
@@ -272,14 +302,6 @@ const MyPageScreen = ({ navigation }) => {
           variant="secondary"
           style={styles.logoutButton}
         />
-
-        {/* Reset onboarding button (for testing) */}
-        <CustomButton
-          title="온보딩 다시 보기"
-          onPress={handleResetOnboarding}
-          variant="secondary"
-          style={styles.resetButton}
-        />
       </View>
     );
   };
@@ -317,19 +339,60 @@ const MyPageScreen = ({ navigation }) => {
   /**
    * Render single review item
    * F-3.3: Display review with cafe name, rating, tags, comment, date
+   * v0.2: F-PHOTO - Display photos
+   * v0.2: F-EDIT - Add edit/delete buttons
    */
   const renderReviewItem = ({ item }) => {
     return (
       <View style={styles.reviewItem}>
-        {/* Cafe name */}
-        <Text style={styles.cafeName} onPress={() => handleReviewPress(item)}>
-          {item.cafeName || '카페 이름 없음'}
-        </Text>
+        {/* Header with cafe name and action buttons */}
+        <View style={styles.reviewHeader}>
+          <Text style={styles.cafeName} onPress={() => handleReviewPress(item)}>
+            {item.cafeName || '카페 이름 없음'}
+          </Text>
+
+          {/* v0.2: F-EDIT - Edit/Delete buttons */}
+          <View style={styles.reviewActions}>
+            <TouchableOpacity
+              onPress={() => handleEditReview(item)}
+              style={styles.actionButton}
+            >
+              <Ionicons name="create-outline" size={20} color={Colors.brand} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => handleDeleteReview(item)}
+              style={styles.actionButton}
+            >
+              <Ionicons name="trash-outline" size={20} color={Colors.error} />
+            </TouchableOpacity>
+          </View>
+        </View>
 
         {/* Star rating */}
         <View style={styles.ratingContainer}>
           <StarRating rating={item.rating} readonly={true} size={16} />
         </View>
+
+        {/* v0.2: F-PHOTO - Display photos if available */}
+        {item.photoUrls && item.photoUrls.length > 0 && (
+          <View style={styles.photosContainer}>
+            {item.photoUrls.map((photoUrl, index) => (
+              <TouchableOpacity
+                key={`${item.id}-photo-${index}`}
+                onPress={() => {
+                  // TODO: Open full-screen image viewer
+                  console.log('Open photo:', photoUrl);
+                }}
+              >
+                <Image
+                  source={{ uri: photoUrl }}
+                  style={styles.photoThumbnail}
+                  resizeMode="cover"
+                />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         {/* Basic tags (맛 태그) */}
         {item.basicTags && item.basicTags.length > 0 && (
@@ -446,9 +509,6 @@ const styles = StyleSheet.create({
   logoutButton: {
     marginTop: 4,
   },
-  resetButton: {
-    marginTop: 8,
-  },
 
   // F-3.2: Statistics card
   statsCard: {
@@ -513,13 +573,40 @@ const styles = StyleSheet.create({
   reviewItem: {
     padding: 16,
   },
+  // v0.2: F-EDIT - Review header with actions
+  reviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  reviewActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  actionButton: {
+    padding: 4,
+  },
   cafeName: {
     ...Typography.h2,
     color: Colors.brand,
-    marginBottom: 8,
+    flex: 1,
   },
   ratingContainer: {
     marginBottom: 8,
+  },
+  // v0.2: F-PHOTO - Photo display styles
+  photosContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  photoThumbnail: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: Colors.divider,
   },
   tagsContainer: {
     flexDirection: 'row',

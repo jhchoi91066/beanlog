@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     marginBottom: 12,
-    fontSize: 16,
+    ...Typography.body,
     color: Colors.textPrimary,
     backgroundColor: Colors.background,
   },

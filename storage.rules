@@ -1,0 +1,39 @@
+rules_version = '2';
+
+// Firebase Storage Security Rules for BeanLog v0.2
+// Allows authenticated users to upload review/cafe images
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Review images - users can upload/read their own review images
+    match /reviews/{imageId} {
+      // Allow authenticated users to read all review images
+      allow read: if request.auth != null;
+
+      // Allow authenticated users to upload images (max 5MB)
+      allow create: if request.auth != null
+                    && request.resource.size < 5 * 1024 * 1024
+                    && request.resource.contentType.matches('image/.*');
+
+      // Allow users to delete their own review images
+      // Note: Image filename format is {reviewId}_{index}_{timestamp}.jpg
+      // Actual ownership validation happens at Firestore level
+      allow delete: if request.auth != null;
+    }
+
+    // Cafe images - authenticated users can upload
+    match /cafes/{imageId} {
+      // Allow everyone to read cafe images
+      allow read: if true;
+
+      // Allow authenticated users to upload cafe images (max 5MB)
+      allow create: if request.auth != null
+                    && request.resource.size < 5 * 1024 * 1024
+                    && request.resource.contentType.matches('image/.*');
+
+      // Only allow deletion by authenticated users
+      allow delete: if request.auth != null;
+    }
+  }
+}

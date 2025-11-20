@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   skipButtonText: {
-    fontSize: Typography.body.fontSize,
+    ...Typography.body,
     color: Colors.textSecondary,
     fontWeight: '500',
   },
@@ -163,18 +163,14 @@ const styles = StyleSheet.create({
   },
   // Title styling - Design System h1
   title: {
-    fontSize: Typography.h1.fontSize,
-    fontWeight: Typography.h1.fontWeight,
-    lineHeight: Typography.h1.lineHeight,
+    ...Typography.h1,
     color: Colors.brand,
     textAlign: 'center',
     marginBottom: 20,
   },
   // Description styling - Design System body
   description: {
-    fontSize: Typography.body.fontSize,
-    fontWeight: Typography.body.fontWeight,
-    lineHeight: Typography.body.lineHeight,
+    ...Typography.body,
     color: Colors.textPrimary,
     textAlign: 'center',
     marginBottom: 60,

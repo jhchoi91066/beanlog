@@ -98,7 +98,7 @@ export const createReview = async (reviewData) => {
 };
 
 /**
- * 리뷰 수정 (v0.2 기능 - 현재는 stub)
+ * 리뷰 수정 (v0.2: F-EDIT)
  * @param {string} reviewId - 리뷰 ID
  * @param {Object} updateData - 수정할 데이터
  * @returns {Promise<void>}
@@ -106,7 +106,10 @@ export const createReview = async (reviewData) => {
 export const updateReview = async (reviewId, updateData) => {
   try {
     const reviewRef = doc(db, 'reviews', reviewId);
-    await updateDoc(reviewRef, updateData);
+    await updateDoc(reviewRef, {
+      ...updateData,
+      updatedAt: serverTimestamp() // v0.2: Track modification time
+    });
   } catch (error) {
     console.error('Error updating review:', error);
     throw error;

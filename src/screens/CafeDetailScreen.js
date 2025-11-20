@@ -8,6 +8,8 @@ import {
   StyleSheet,
   FlatList,
   ScrollView,
+  Image,
+  TouchableOpacity,
 } from 'react-native';
 import PropTypes from 'prop-types';
 import { Colors, Typography } from '../constants';
@@ -67,6 +69,27 @@ const CafeDetailScreen = ({ route }) => {
         <View style={styles.ratingContainer}>
           <StarRating rating={item.rating} readonly={true} size={16} />
         </View>
+
+        {/* v0.2: F-PHOTO - Display photos if available */}
+        {item.photoUrls && item.photoUrls.length > 0 && (
+          <View style={styles.photosContainer}>
+            {item.photoUrls.map((photoUrl, index) => (
+              <TouchableOpacity
+                key={`${item.id}-photo-${index}`}
+                onPress={() => {
+                  // TODO: Open full-screen image viewer
+                  console.log('Open photo:', photoUrl);
+                }}
+              >
+                <Image
+                  source={{ uri: photoUrl }}
+                  style={styles.photoThumbnail}
+                  resizeMode="cover"
+                />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         {/* Basic tags (맛 태그) */}
         {item.basicTags && item.basicTags.length > 0 && (
@@ -241,6 +264,19 @@ const styles = StyleSheet.create({
   },
   ratingContainer: {
     marginBottom: 8,
+  },
+  // v0.2: F-PHOTO - Photo display styles
+  photosContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  photoThumbnail: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: Colors.divider,
   },
   tagsContainer: {
     flexDirection: 'row',
