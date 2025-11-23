@@ -1,7 +1,7 @@
 // Naver Map View Component - WebView 기반 Naver Maps 통합
-// v0.2: F-MAP - 지도 뷰 기능
+// v0.3: Optimized rendering with injectJavaScript
 
-import React, { useRef } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Platform } from 'react-native';
 import { WebView } from 'react-native-webview';
 import PropTypes from 'prop-types';
@@ -14,13 +14,13 @@ const NaverMapView = ({
   userLocation,
   style
 }) => {
+  console.log('NaverMapView rendered with:', { userLocation, initialRegion });
   const webViewRef = useRef(null);
 
-  // Generate HTML content with Naver Maps
-  const generateMapHTML = () => {
-    const cafesJSON = JSON.stringify(cafes.filter(cafe => cafe.coordinates));
-    const userLocationJSON = JSON.stringify(userLocation);
-    const clientId = 'ywaw0lihwo'; // Naver Maps Client ID
+  // Generate HTML content with Naver Maps - Memoized to prevent reloads
+  const mapHTML = useMemo(() => {
+    const clientId = process.env.EXPO_PUBLIC_NAVER_MAPS_CLIENT_ID || 'ywaw0lihwo'; // Naver Maps Client ID
+    console.log('Debugging Naver Map Client ID:', clientId);
 
     return `
 <!DOCTYPE html>
@@ -28,7 +28,7 @@ const NaverMapView = ({
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <script type="text/javascript" src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpClientId=${clientId}"></script>
+    <script type="text/javascript" src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${clientId}"></script>
     <style>
         * { margin: 0; padding: 0; }
         html, body { width: 100%; height: 100%; }
@@ -38,86 +38,110 @@ const NaverMapView = ({
 <body>
     <div id="map"></div>
     <script>
+        // Global variables
+        var map;
+        var markers = [];
+        var userMarker;
+
+        // Auth failure handler
+        window.navermap_authFailure = function () {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'error',
+                message: 'Naver Map Authentication Failed'
+            }));
+        }
+
         // Initialize map
-        const mapOptions = {
+        var mapOptions = {
             center: new naver.maps.LatLng(${initialRegion?.latitude || 37.5665}, ${initialRegion?.longitude || 126.9780}),
             zoom: ${initialRegion?.zoom || 13},
+            scaleControl: false,
+            logoControl: false,
+            mapDataControl: false,
             zoomControl: true,
             zoomControlOptions: {
                 position: naver.maps.Position.TOP_RIGHT
             }
         };
 
-        const map = new naver.maps.Map('map', mapOptions);
+        map = new naver.maps.Map('map', mapOptions);
 
-        // Cafe data
-        const cafes = ${cafesJSON};
-
-        // User location data
-        const userLocation = ${userLocationJSON};
-
-        // Add user location marker if available
-        if (userLocation && userLocation.latitude && userLocation.longitude) {
-            const userMarker = new naver.maps.Marker({
-                position: new naver.maps.LatLng(userLocation.latitude, userLocation.longitude),
-                map: map,
-                title: '내 위치',
-                icon: {
-                    content: '<div style="width: 40px; height: 40px; background: linear-gradient(135deg, #3b82f6, #2563eb); border-radius: 50%; border: 4px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;"><div style="width: 12px; height: 12px; background-color: white; border-radius: 50%;"></div></div>',
-                    size: new naver.maps.Size(40, 40),
-                    anchor: new naver.maps.Point(20, 20)
-                },
-                zIndex: 1000
-            });
-        }
-
-        // Create cafe markers
-        const markers = [];
-        cafes.forEach((cafe, index) => {
-            if (!cafe.coordinates || !cafe.coordinates._lat || !cafe.coordinates._long) {
-                return;
+        // Function to update markers
+        window.updateMarkers = function(cafes) {
+            // Clear existing markers
+            for (var i = 0; i < markers.length; i++) {
+                markers[i].setMap(null);
             }
+            markers = [];
 
-            const marker = new naver.maps.Marker({
-                position: new naver.maps.LatLng(cafe.coordinates._lat, cafe.coordinates._long),
-                map: map,
-                title: cafe.name,
-                icon: {
-                    content: '<div style="width: 32px; height: 32px; background-color: #6F4E37; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;"><div style="width: 12px; height: 12px; background-color: white; border-radius: 50%;"></div></div>',
-                    size: new naver.maps.Size(32, 32),
-                    anchor: new naver.maps.Point(16, 16)
+            // Add new markers
+            cafes.forEach(function(cafe) {
+                var lat = cafe.coordinates.latitude || cafe.coordinates._lat;
+                var lng = cafe.coordinates.longitude || cafe.coordinates._long;
+
+                if (lat && lng) {
+                    var marker = new naver.maps.Marker({
+                        position: new naver.maps.LatLng(lat, lng),
+                        map: map,
+                        title: cafe.name,
+                        icon: {
+                            content: '<div style="width: 14px; height: 14px; background-color: #6F4E37; border-radius: 50%; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.3);"></div>',
+                            size: new naver.maps.Size(14, 14),
+                            anchor: new naver.maps.Point(7, 7)
+                        }
+                    });
+
+                    naver.maps.Event.addListener(marker, 'click', function() {
+                        window.ReactNativeWebView.postMessage(JSON.stringify({
+                            type: 'markerPress', // Changed from markerClick to markerPress to match existing handler
+                            cafe: cafe
+                        }));
+                    });
+
+                    markers.push(marker);
                 }
             });
+        };
 
-            // Marker click event
-            naver.maps.Event.addListener(marker, 'click', function() {
-                window.ReactNativeWebView.postMessage(JSON.stringify({
-                    type: 'markerPress',
-                    cafe: cafe
-                }));
-            });
+        // Function to move map to location (centers map)
+        window.moveToLocation = function(lat, lng) {
+            var newCenter = new naver.maps.LatLng(lat, lng);
+            map.morph(newCenter, 16); // Smooth transition
+            window.updateUserMarker(lat, lng);
+        };
 
-            markers.push(marker);
-        });
+        // Function to update user marker only (does not move map center)
+        window.updateUserMarker = function(lat, lng) {
+            var newPosition = new naver.maps.LatLng(lat, lng);
+            
+            if (userMarker) {
+                userMarker.setPosition(newPosition);
+            } else {
+                userMarker = new naver.maps.Marker({
+                    position: newPosition,
+                    map: map,
+                    title: '내 위치',
+                    icon: {
+                        content: '<div style="width: 40px; height: 40px; background: linear-gradient(135deg, #3b82f6, #2563eb); border-radius: 50%; border: 4px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;"><div style="width: 12px; height: 12px; background-color: white; border-radius: 50%;"></div></div>',
+                        size: new naver.maps.Size(40, 40),
+                        anchor: new naver.maps.Point(20, 20)
+                    },
+                    zIndex: 1000
+                });
+            }
+        };
 
-        // Fit bounds to show all markers
-        if (markers.length > 0) {
-            const bounds = new naver.maps.LatLngBounds();
-            markers.forEach(marker => {
-                bounds.extend(marker.getPosition());
-            });
-            map.fitBounds(bounds, { top: 50, right: 50, bottom: 50, left: 50 });
-        }
 
         // Send ready message
         window.ReactNativeWebView.postMessage(JSON.stringify({
-            type: 'mapReady'
+            type: 'mapReady',
+            origin: window.location.href
         }));
     </script>
 </body>
 </html>
     `;
-  };
+  }, []);
 
   // Handle messages from WebView
   const handleMessage = (event) => {
@@ -127,7 +151,31 @@ const NaverMapView = ({
       if (message.type === 'markerPress' && onMarkerPress) {
         onMarkerPress(message.cafe);
       } else if (message.type === 'mapReady') {
-        console.log('Naver Map loaded successfully');
+        console.log('✅ Naver Map loaded successfully');
+        console.log('📍 WebView Origin:', message.origin);
+
+        // Move to user location if available
+        if (userLocation && userLocation.latitude && userLocation.longitude) {
+          console.log('📍 Moving to user location on mapReady:', userLocation);
+          webViewRef.current?.injectJavaScript(`
+            if (window.moveToLocation) {
+              window.moveToLocation(${userLocation.latitude}, ${userLocation.longitude});
+            }
+          `);
+        }
+
+        // Initial markers update
+        if (cafes && cafes.length > 0) {
+          const cafesJSON = JSON.stringify(cafes.filter(cafe => cafe.coordinates));
+          webViewRef.current?.injectJavaScript(`
+            if (window.updateMarkers) {
+              window.updateMarkers(${cafesJSON});
+            }
+          `);
+        }
+      } else if (message.type === 'error') {
+        console.error('❌ Naver Map error:', message.message);
+        console.log('💡 Tip: 네이버 클라우드 플랫폼에서 모바일 앱 패키지 이름을 등록해야 합니다.');
       }
     } catch (error) {
       console.error('Error handling WebView message:', error);
@@ -149,8 +197,16 @@ const NaverMapView = ({
       <WebView
         ref={webViewRef}
         originWhitelist={['*']}
-        source={{ html: generateMapHTML() }}
+        source={{ html: mapHTML, baseUrl: 'http://localhost' }}
         onMessage={handleMessage}
+        onError={(syntheticEvent) => {
+          const { nativeEvent } = syntheticEvent;
+          console.error('WebView error:', nativeEvent);
+        }}
+        onHttpError={(syntheticEvent) => {
+          const { nativeEvent } = syntheticEvent;
+          console.warn('WebView HTTP error:', nativeEvent);
+        }}
         javaScriptEnabled={true}
         domStorageEnabled={true}
         startInLoadingState={true}
@@ -160,6 +216,21 @@ const NaverMapView = ({
           </View>
         )}
         style={styles.webview}
+        onLoadEnd={() => {
+          // Inject error handler for Naver Maps API errors
+          webViewRef.current?.injectJavaScript(`
+            (function() {
+              window.addEventListener('error', function(e) {
+                if (e.message && e.message.includes('Naver')) {
+                  window.ReactNativeWebView.postMessage(JSON.stringify({
+                    type: 'error',
+                    message: e.message
+                  }));
+                }
+              });
+            })();
+          `);
+        }}
       />
     </View>
   );

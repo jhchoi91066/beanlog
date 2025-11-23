@@ -152,7 +152,9 @@ const SearchScreen = ({ navigation, route }) => {
   const renderMapView = () => {
     // Filter cafes that have coordinates
     const cafesWithCoordinates = cafes.filter(
-      cafe => cafe.coordinates && cafe.coordinates._lat && cafe.coordinates._long
+      cafe => cafe.coordinates &&
+        ((cafe.coordinates.latitude && cafe.coordinates.longitude) ||
+          (cafe.coordinates._lat && cafe.coordinates._long))
     );
 
     return (
@@ -172,7 +174,7 @@ const SearchScreen = ({ navigation, route }) => {
             />
 
             {/* Search this area button */}
-            <View style={styles.mapSearchButtonContainer}>
+            <View style={styles.mapSearchButtonContainer} pointerEvents="box-none">
               <TouchableOpacity
                 style={styles.mapSearchButton}
                 onPress={handleMapSearch}

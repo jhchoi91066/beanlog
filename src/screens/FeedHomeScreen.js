@@ -325,23 +325,38 @@ const FeedHomeScreen = ({ navigation }) => {
   const loadNearbyCafes = async (latitude, longitude) => {
     try {
       const allCafes = await getAllCafes();
+      console.log('Total cafes fetched from DB:', allCafes.length);
 
       // Filter cafes that have coordinates
+      if (allCafes.length > 0) {
+        console.log('Sample cafe coordinates:', allCafes[0].coordinates);
+        if (allCafes[0].coordinates) {
+          console.log('Coordinate keys:', Object.keys(allCafes[0].coordinates));
+        }
+      }
+
       const cafesWithCoordinates = allCafes.filter(
-        cafe => cafe.coordinates && cafe.coordinates._lat && cafe.coordinates._long
+        cafe => cafe.coordinates &&
+          ((cafe.coordinates.latitude && cafe.coordinates.longitude) ||
+            (cafe.coordinates._lat && cafe.coordinates._long))
       );
 
       // Calculate distance and filter
       const cafesWithDistance = cafesWithCoordinates
-        .map(cafe => ({
-          ...cafe,
-          distance: calculateDistance(
-            latitude,
-            longitude,
-            cafe.coordinates._lat,
-            cafe.coordinates._long
-          ),
-        }))
+        .map(cafe => {
+          const lat = cafe.coordinates.latitude || cafe.coordinates._lat;
+          const lng = cafe.coordinates.longitude || cafe.coordinates._long;
+
+          return {
+            ...cafe,
+            distance: calculateDistance(
+              latitude,
+              longitude,
+              lat,
+              lng
+            ),
+          };
+        })
         .filter(cafe => cafe.distance <= 10) // Within 10km
         .sort((a, b) => a.distance - b.distance);
 
@@ -366,9 +381,9 @@ const FeedHomeScreen = ({ navigation }) => {
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c; // Distance in km
   };
@@ -466,7 +481,7 @@ const FeedHomeScreen = ({ navigation }) => {
     if (loading) {
       return (
         <View style={styles.loadingContainer}>
-          <LoadingSpinner visible={true} />
+          <LoadingSpinner visible={true} fullScreen={false} />
         </View>
       );
     }
@@ -493,6 +508,7 @@ const FeedHomeScreen = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
         refreshing={refreshing}
         onRefresh={handleRefresh}
+        scrollEnabled={false}
       />
     );
   };
@@ -542,13 +558,19 @@ const FeedHomeScreen = ({ navigation }) => {
     if (locationLoading || !userLocation) {
       return (
         <View style={styles.loadingContainer}>
-          <LoadingSpinner visible={true} />
+          <LoadingSpinner visible={true} fullScreen={false} />
           <Text style={styles.emptyStateSubtext}>위치를 가져오는 중...</Text>
         </View>
       );
     }
 
     // Show map and nearby cafes list
+    console.log('Rendering nearby content. UserLocation:', userLocation);
+    console.log('Nearby cafes count:', nearbyCafes.length);
+    if (nearbyCafes.length > 0) {
+      console.log('First cafe coordinates:', nearbyCafes[0].coordinates);
+    }
+
     return (
       <View style={styles.nearbyContainer}>
         {/* Map View */}
@@ -557,11 +579,6 @@ const FeedHomeScreen = ({ navigation }) => {
             cafes={nearbyCafes}
             onMarkerPress={handleCafePress}
             userLocation={userLocation}
-            initialRegion={{
-              latitude: userLocation.latitude,
-              longitude: userLocation.longitude,
-              zoom: 14,
-            }}
             style={styles.map}
           />
         </View>
@@ -660,6 +677,7 @@ const FeedHomeScreen = ({ navigation }) => {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        nestedScrollEnabled={true}
       >
         {renderHeader()}
         {renderTabs()}
