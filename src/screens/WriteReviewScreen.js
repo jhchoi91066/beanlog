@@ -23,6 +23,7 @@ import Tag from '../components/Tag';
 import CustomButton from '../components/CustomButton';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Slider from '../components/Slider';
+import FlavorProfile from '../components/FlavorProfile';
 import { useAuth } from '../contexts/AuthContext';
 import { createReview, updateReview } from '../services/reviewService';
 import { getAllCafes } from '../services/cafeService';
@@ -45,6 +46,9 @@ const WriteReviewScreen = ({ navigation, route }) => {
   const [selectedCafe, setSelectedCafe] = useState(null);
   const [showCafeSelector, setShowCafeSelector] = useState(false);
   const [loadingCafes, setLoadingCafes] = useState(false);
+
+  // Coffee Name State
+  const [coffeeName, setCoffeeName] = useState('');
 
   // F-2.2: Basic Mode State
   const [rating, setRating] = useState(0);
@@ -83,6 +87,7 @@ const WriteReviewScreen = ({ navigation, route }) => {
       setRating(review.rating || 0);
       setSelectedBasicTags(review.basicTags || []);
       setComment(review.comment || '');
+      setCoffeeName(review.coffeeName || '');
       setSelectedPhotos(review.photoUrls?.map(url => ({ uri: url })) || []);
 
       // Advanced mode fields
@@ -242,6 +247,7 @@ const WriteReviewScreen = ({ navigation, route }) => {
         rating: rating,
         basicTags: selectedBasicTags,
         comment: comment.trim() || null, // Optional field
+        coffeeName: coffeeName.trim() || null, // Coffee name field
       };
 
       // Add advanced mode fields if enabled
@@ -346,6 +352,7 @@ const WriteReviewScreen = ({ navigation, route }) => {
     setRating(0);
     setSelectedBasicTags([]);
     setComment('');
+    setCoffeeName('');
     setShowAdvancedMode(false);
     setAcidity(3);
     setBody(3);
@@ -424,6 +431,19 @@ const WriteReviewScreen = ({ navigation, route }) => {
           </TouchableOpacity>
         </View>
 
+        {/* Coffee Name Input */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>커피 이름 (선택)</Text>
+          <TextInput
+            style={styles.coffeeNameInput}
+            placeholder="예: 아메리카노, 카페라떼, 플랫화이트"
+            placeholderTextColor={Colors.textSecondary}
+            value={coffeeName}
+            onChangeText={setCoffeeName}
+            maxLength={50}
+          />
+        </View>
+
         {/* F-2.2: Basic Mode - Rating */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
@@ -460,7 +480,10 @@ const WriteReviewScreen = ({ navigation, route }) => {
 
         {/* F-2.2: Basic Mode - Comment */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>한 줄 코멘트 (선택)</Text>
+          <Text style={styles.sectionTitle}>나만의 기록 (선택)</Text>
+          <Text style={styles.sectionSubtitle}>
+            커피의 맛과 향, 카페의 분위기는 어땠나요?
+          </Text>
           <TextInput
             style={styles.commentInput}
             placeholder="이 카페에 대한 한 줄 평을 남겨주세요 (최대 100자)"
@@ -505,20 +528,50 @@ const WriteReviewScreen = ({ navigation, route }) => {
           </View>
         </View>
 
-        {/* F-2.3: Advanced Mode Toggle */}
+        {/* F-2.3: Advanced Mode Toggle - Enhanced with icon */}
         <View style={styles.section}>
-          <CustomButton
-            title={showAdvancedMode ? '상세 리뷰 숨기기' : '상세 리뷰 남기기'}
+          <TouchableOpacity
+            style={styles.advancedToggle}
             onPress={() => setShowAdvancedMode(!showAdvancedMode)}
-            variant="secondary"
-          />
+          >
+            <View style={styles.advancedToggleContent}>
+              <Ionicons
+                name={showAdvancedMode ? 'chevron-up' : 'chevron-down'}
+                size={20}
+                color={Colors.amber600}
+              />
+              <Text style={styles.advancedToggleText}>
+                {showAdvancedMode ? '상세 리뷰 숨기기' : '상세 리뷰 남기기'}
+              </Text>
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* F-2.3: Advanced Mode Fields */}
         {showAdvancedMode && (
           <View style={styles.advancedSection}>
+            <View style={styles.advancedHeader}>
+              <Text style={styles.advancedTitle}>맛 그래프</Text>
+              <Text style={styles.advancedSubtitle}>
+                상세한 맛 평가를 남겨주세요
+              </Text>
+            </View>
+
+            {/* Flavor Profile Visualization */}
+            <View style={styles.flavorVisualizationContainer}>
+              <FlavorProfile
+                flavorProfile={{
+                  acidity: acidity,
+                  sweetness: 3, // Default/placeholder - could be made adjustable in future
+                  body: body,
+                  bitterness: 3, // Default/placeholder
+                  aroma: 3, // Default/placeholder
+                }}
+              />
+            </View>
+
             {/* Acidity Slider */}
-            <View style={styles.section}>
+            <View style={styles.sliderSection}>
               <Slider
                 label="산미 (선택)"
                 value={acidity}
@@ -532,7 +585,7 @@ const WriteReviewScreen = ({ navigation, route }) => {
             </View>
 
             {/* Body Slider */}
-            <View style={styles.section}>
+            <View style={styles.sliderSection}>
               <Slider
                 label="바디 (선택)"
                 value={body}
@@ -546,8 +599,8 @@ const WriteReviewScreen = ({ navigation, route }) => {
             </View>
 
             {/* Advanced Flavor Tags */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>상세 향 (선택)</Text>
+            <View style={styles.advancedTagsSection}>
+              <Text style={styles.advancedSectionLabel}>상세 향 (선택)</Text>
               <View style={styles.tagsContainer}>
                 {ADVANCED_TAGS.map((tag) => (
                   <Tag
@@ -561,8 +614,8 @@ const WriteReviewScreen = ({ navigation, route }) => {
             </View>
 
             {/* Roasting Level */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>로스팅 (선택)</Text>
+            <View style={styles.advancedTagsSection}>
+              <Text style={styles.advancedSectionLabel}>로스팅 (선택)</Text>
               <View style={styles.roastingContainer}>
                 {ROASTING_LEVELS.map((level) => (
                   <TouchableOpacity
@@ -631,13 +684,13 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   sectionTitle: {
-    ...Typography.h2,
-    color: Colors.textPrimary,
+    ...Typography.h3,
+    color: Colors.stone800,
     marginBottom: 8,
   },
   sectionSubtitle: {
     ...Typography.caption,
-    color: Colors.textSecondary,
+    color: Colors.stone500,
     marginBottom: 12,
   },
   required: {
@@ -647,17 +700,17 @@ const styles = StyleSheet.create({
   // Cafe Selector
   cafeSelector: {
     borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 8,
+    borderColor: Colors.stone200,
+    borderRadius: 12,
     padding: 16,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.backgroundWhite,
   },
   cafeSelectorText: {
     ...Typography.body,
-    color: Colors.textPrimary,
+    color: Colors.stone800,
   },
   cafeSelectorPlaceholder: {
-    color: Colors.textSecondary,
+    color: Colors.stone400,
   },
 
   // Star Rating
@@ -670,31 +723,80 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     marginTop: 8,
+    gap: 8,
   },
 
-  // Comment Input
+  // Coffee Name Input
+  coffeeNameInput: {
+    borderWidth: 1,
+    borderColor: Colors.stone200,
+    borderRadius: 12,
+    padding: 16,
+    ...Typography.body,
+    color: Colors.stone800,
+    backgroundColor: Colors.backgroundWhite,
+  },
+
+  // Comment Input - Enhanced design from CreatePost
   commentInput: {
     borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 8,
-    padding: 12,
+    borderColor: Colors.stone200,
+    borderRadius: 12,
+    padding: 16,
     ...Typography.body,
-    color: Colors.textPrimary,
-    minHeight: 80,
+    color: Colors.stone800,
+    backgroundColor: Colors.backgroundWhite,
+    minHeight: 120,
     textAlignVertical: 'top',
   },
   characterCount: {
     ...Typography.caption,
-    color: Colors.textSecondary,
+    color: Colors.stone400,
     textAlign: 'right',
-    marginTop: 4,
+    marginTop: 8,
   },
 
-  // Advanced Section
+  // Advanced Section - Enhanced with background
   advancedSection: {
-    borderTopWidth: 1,
-    borderTopColor: Colors.divider,
-    paddingTop: 16,
+    backgroundColor: Colors.stone50,
+    borderRadius: 16,
+    padding: 20,
+    marginTop: 8,
+  },
+  advancedHeader: {
+    marginBottom: 20,
+  },
+  advancedTitle: {
+    fontSize: Typography.h4.fontSize,
+    fontWeight: Typography.h4.fontWeight,
+    color: Colors.stone700,
+    marginBottom: 4,
+  },
+  advancedSubtitle: {
+    fontSize: Typography.captionSmall.fontSize,
+    color: Colors.stone500,
+  },
+  sliderSection: {
+    marginBottom: 20,
+  },
+  advancedTagsSection: {
+    marginTop: 4,
+  },
+  advancedSectionLabel: {
+    fontSize: Typography.caption.fontSize,
+    fontWeight: Typography.label.fontWeight,
+    color: Colors.stone700,
+    marginBottom: 12,
+  },
+
+  // Flavor Visualization
+  flavorVisualizationContainer: {
+    backgroundColor: Colors.backgroundWhite,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: Colors.stone200,
   },
 
   // Roasting Buttons
@@ -705,39 +807,60 @@ const styles = StyleSheet.create({
   },
   roastingButton: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 16,
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.background,
+    borderColor: Colors.stone200,
+    backgroundColor: Colors.backgroundWhite,
     alignItems: 'center',
   },
   roastingButtonSelected: {
-    backgroundColor: Colors.accent,
-    borderColor: Colors.accent,
+    backgroundColor: Colors.amber600,
+    borderColor: Colors.amber600,
   },
   roastingButtonText: {
-    ...Typography.body,
-    color: Colors.textSecondary,
+    ...Typography.button,
+    color: Colors.stone600,
     fontWeight: '600',
   },
   roastingButtonTextSelected: {
-    color: Colors.background,
+    color: Colors.backgroundWhite,
   },
 
-  // Submit Section
+  // Advanced Toggle - Enhanced design
+  advancedToggle: {
+    backgroundColor: Colors.backgroundWhite,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.stone200,
+    padding: 16,
+  },
+  advancedToggleContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  advancedToggleText: {
+    ...Typography.button,
+    color: Colors.stone700,
+  },
+
+  // Submit Section - Enhanced button style
   submitSection: {
-    marginTop: 16,
+    marginTop: 32,
     marginBottom: 24,
   },
 
   // Error Display
   errorContainer: {
-    backgroundColor: '#FFEBEE',
-    padding: 12,
-    borderRadius: 8,
+    backgroundColor: Colors.stone100,
+    padding: 16,
+    borderRadius: 12,
     marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.error,
   },
   errorText: {
     ...Typography.body,
@@ -752,9 +875,9 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: Colors.background,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    backgroundColor: Colors.backgroundWhite,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     maxHeight: '80%',
     paddingBottom: 20,
   },
@@ -764,15 +887,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.divider,
+    borderBottomColor: Colors.stone100,
   },
   modalTitle: {
     ...Typography.h2,
-    color: Colors.textPrimary,
+    color: Colors.stone800,
   },
   modalCloseButton: {
-    ...Typography.body,
-    color: Colors.brand,
+    ...Typography.button,
+    color: Colors.amber600,
     fontWeight: '600',
   },
   cafeList: {
@@ -781,57 +904,62 @@ const styles = StyleSheet.create({
   cafeItem: {
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.divider,
+    borderBottomColor: Colors.stone100,
   },
   cafeName: {
-    ...Typography.h2,
-    color: Colors.textPrimary,
+    ...Typography.h3,
+    color: Colors.stone800,
     marginBottom: 4,
   },
   cafeLocation: {
     ...Typography.caption,
-    color: Colors.textSecondary,
+    color: Colors.stone500,
   },
 
   // v0.2: F-PHOTO - Photo Upload Styles
   photosContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 8,
+    gap: 12,
+    marginTop: 12,
   },
   photoWrapper: {
     position: 'relative',
-    width: 80,
-    height: 80,
+    width: 100,
+    height: 100,
   },
   photoPreview: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-    backgroundColor: Colors.divider,
+    width: 100,
+    height: 100,
+    borderRadius: 12,
+    backgroundColor: Colors.stone200,
   },
   photoRemoveButton: {
     position: 'absolute',
     top: -8,
     right: -8,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.backgroundWhite,
     borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   photoAddButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
+    width: 100,
+    height: 100,
+    borderRadius: 12,
     borderWidth: 2,
-    borderColor: Colors.border,
+    borderColor: Colors.stone300,
     borderStyle: 'dashed',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.stone50,
   },
   photoAddText: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
+    ...Typography.captionSmall,
+    color: Colors.stone500,
     marginTop: 4,
   },
 });

@@ -3,6 +3,7 @@
 
 import { collection, getDocs, doc, getDoc, query, where } from 'firebase/firestore';
 import { db } from './firebase';
+import { getReviewsByCafe } from './reviewService';
 
 /**
  * 모든 카페 목록 가져오기
@@ -64,6 +65,50 @@ export const getCafesByLocation = async (locationTag) => {
     }));
   } catch (error) {
     console.error('Error fetching cafes by location:', error);
+    throw error;
+  }
+};
+
+/**
+ * Calculate average rating for a cafe from its reviews
+ * @param {string} cafeId - Cafe ID
+ * @returns {Promise<number>} Average rating (0-5, rounded to 1 decimal place)
+ *
+ * Returns 0 if cafe has no reviews
+ * Used for displaying star ratings in cafe lists
+ */
+export const calculateCafeRating = async (cafeId) => {
+  try {
+    const reviews = await getReviewsByCafe(cafeId);
+    if (reviews.length === 0) return 0;
+
+    const sum = reviews.reduce((acc, review) => acc + (review.rating || 0), 0);
+    const average = sum / reviews.length;
+
+    // Return rating rounded to 1 decimal place
+    return Math.round(average * 10) / 10;
+  } catch (error) {
+    console.error('Error calculating cafe rating:', error);
+    return 0;
+  }
+};
+
+/**
+ * Get cafe with calculated average rating
+ * @param {string} cafeId - Cafe ID
+ * @returns {Promise<Object>} Cafe object with averageRating property
+ */
+export const getCafeWithRating = async (cafeId) => {
+  try {
+    const cafe = await getCafeById(cafeId);
+    const averageRating = await calculateCafeRating(cafeId);
+
+    return {
+      ...cafe,
+      averageRating
+    };
+  } catch (error) {
+    console.error('Error fetching cafe with rating:', error);
     throw error;
   }
 };

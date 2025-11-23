@@ -1,15 +1,21 @@
 // BeanLog - CustomButton Component
 // Reusable button component with primary and secondary variants
-// Follows The Foundation design system
+// Follows The Foundation design system with smooth press animations
 
-import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import React, { useRef } from 'react';
+import {
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+  Animated,
+  Pressable,
+} from 'react-native';
 import PropTypes from 'prop-types';
 import Colors from '../constants/colors';
 import Typography from '../constants/typography';
 
 /**
- * CustomButton - A reusable button component with two variants
+ * CustomButton - A reusable button component with two variants and animations
  *
  * @param {string} title - Button text to display
  * @param {function} onPress - Callback function when button is pressed
@@ -26,6 +32,10 @@ const CustomButton = ({
   loading = false,
   style
 }) => {
+  // Animation values
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const opacityAnim = useRef(new Animated.Value(1)).current;
+
   // Determine button styles based on variant and disabled state
   const buttonStyle = [
     styles.button,
@@ -43,22 +53,72 @@ const CustomButton = ({
   // Disable interaction when button is disabled or loading
   const isInteractionDisabled = disabled || loading;
 
+  // Press animation handlers
+  const handlePressIn = () => {
+    if (isInteractionDisabled) return;
+
+    Animated.parallel([
+      // Scale down to 0.96 for a more pronounced press effect
+      Animated.spring(scaleAnim, {
+        toValue: 0.96,
+        useNativeDriver: true,
+      }),
+      // Slight opacity reduction
+      Animated.timing(opacityAnim, {
+        toValue: 0.85,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const handlePressOut = () => {
+    if (isInteractionDisabled) return;
+
+    Animated.parallel([
+      // Spring back to original scale with bounce
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 3,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+      // Return to full opacity
+      Animated.timing(opacityAnim, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
   return (
-    <TouchableOpacity
-      style={buttonStyle}
-      onPress={onPress}
-      disabled={isInteractionDisabled}
-      activeOpacity={0.7}
+    <Animated.View
+      style={{
+        transform: [{ scale: scaleAnim }],
+        opacity: opacityAnim,
+      }}
     >
-      {loading ? (
-        <ActivityIndicator
-          color={variant === 'primary' ? Colors.background : Colors.brand}
-          size="small"
-        />
-      ) : (
-        <Text style={textStyle}>{title}</Text>
-      )}
-    </TouchableOpacity>
+      <Pressable
+        style={buttonStyle}
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        disabled={isInteractionDisabled}
+        android_ripple={{
+          color: variant === 'primary' ? Colors.stone100 : Colors.stone50,
+        }}
+      >
+        {loading ? (
+          <ActivityIndicator
+            color={variant === 'primary' ? Colors.background : Colors.brand}
+            size="small"
+          />
+        ) : (
+          <Text style={textStyle}>{title}</Text>
+        )}
+      </Pressable>
+    </Animated.View>
   );
 };
 

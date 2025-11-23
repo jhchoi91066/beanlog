@@ -1,5 +1,6 @@
-// My Page Screen - 마이페이지 (마이페이지 탭)
-// 문서 참조: The Blueprint - F-3 마이페이지
+// BeanLog - My Page Screen (마이페이지)
+// Combines ProfileScreen UI design with actual Firebase data logic
+// Features: User profile, stats, flavor preferences, review management
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -7,33 +8,40 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Alert,
-  Platform,
-  Image,
   TouchableOpacity,
+  Image,
+  Platform,
+  Alert,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Colors, Typography } from '../constants';
-import {
-  LoadingSpinner,
-  EmptyState,
-  CustomButton,
-  Tag,
-  StarRating,
-} from '../components';
+import { Ionicons } from '@expo/vector-icons';
+import Colors from '../constants/colors';
+import Typography from '../constants/typography';
+import CoffeeCard from '../components/CoffeeCard';
+import FlavorProfile from '../components/FlavorProfile';
+import { LoadingSpinner } from '../components';
 import { useAuth } from '../contexts/AuthContext';
 import { getReviewsByUser, deleteReview } from '../services/reviewService';
 import { getCafeById } from '../services/cafeService';
-import { Ionicons } from '@expo/vector-icons';
 
 const MyPageScreen = ({ navigation }) => {
   const { user, signOut } = useAuth();
 
+  // State management
+  const [activeTab, setActiveTab] = useState('logs'); // 'logs' or 'saved'
   const [reviewsWithCafeInfo, setReviewsWithCafeInfo] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statistics, setStatistics] = useState({
     totalCoffees: 0,
     favoriteTag: null,
+    avgRating: 0,
+  });
+  const [flavorPreference, setFlavorPreference] = useState({
+    acidity: 0,
+    sweetness: 0,
+    body: 0,
+    bitterness: 0,
+    aroma: 0,
   });
 
   // Fetch user reviews on mount and when screen comes into focus
@@ -54,8 +62,7 @@ const MyPageScreen = ({ navigation }) => {
 
   /**
    * Fetch user's reviews and calculate statistics
-   * F-3.2: Calculate total coffees and favorite tag
-   * F-3.3: Display user's review list
+   * Combines F-3.2 (statistics) and F-3.3 (review list)
    */
   const fetchUserReviews = async () => {
     try {
@@ -64,20 +71,17 @@ const MyPageScreen = ({ navigation }) => {
       // Fetch reviews by current user
       const userReviews = await getReviewsByUser(user.uid);
 
-      // Calculate statistics
+      // Calculate statistics and flavor preferences
       calculateStatistics(userReviews);
+      calculateFlavorPreference(userReviews);
 
       // Fetch cafe information for each review
-      // Note: This is a simple v0.1 approach. In production, consider:
-      // - Denormalizing cafe name in review document
-      // - Using batch fetching or caching
-      // - Implementing pagination for better performance
       await enrichReviewsWithCafeInfo(userReviews);
     } catch (error) {
       console.error('Error fetching user reviews:', error);
       // Handle error gracefully - show empty state
       setReviewsWithCafeInfo([]);
-      setStatistics({ totalCoffees: 0, favoriteTag: null });
+      setStatistics({ totalCoffees: 0, favoriteTag: null, avgRating: 0 });
     } finally {
       setLoading(false);
     }
@@ -86,11 +90,9 @@ const MyPageScreen = ({ navigation }) => {
   /**
    * Enrich reviews with cafe information
    * For v0.1, we fetch cafe data for each review individually
-   * @param {Array} userReviews - Array of review objects
    */
   const enrichReviewsWithCafeInfo = async (userReviews) => {
     try {
-      // Fetch cafe info for each review
       const enrichedReviews = await Promise.all(
         userReviews.map(async (review) => {
           try {
@@ -99,14 +101,15 @@ const MyPageScreen = ({ navigation }) => {
               ...review,
               cafeName: cafe.name,
               cafeAddress: cafe.address,
+              location: cafe.address,
             };
           } catch (error) {
-            // If cafe fetch fails, use cafeId as fallback
             console.error(`Failed to fetch cafe ${review.cafeId}:`, error);
             return {
               ...review,
               cafeName: `카페 ID: ${review.cafeId}`,
               cafeAddress: null,
+              location: null,
             };
           }
         })
@@ -115,27 +118,28 @@ const MyPageScreen = ({ navigation }) => {
       setReviewsWithCafeInfo(enrichedReviews);
     } catch (error) {
       console.error('Error enriching reviews:', error);
-      // Fallback: use reviews without cafe info
       setReviewsWithCafeInfo(userReviews);
     }
   };
 
   /**
    * Calculate user statistics
-   * F-3.2: Total coffees and favorite tag
-   * @param {Array} userReviews - Array of review objects
+   * F-3.2: Total coffees, favorite tag, average rating
    */
   const calculateStatistics = (userReviews) => {
-    // Total coffees = number of reviews
     const totalCoffees = userReviews.length;
+
+    // Calculate average rating
+    let avgRating = 0;
+    if (userReviews.length > 0) {
+      const totalRating = userReviews.reduce((sum, review) => sum + (review.rating || 0), 0);
+      avgRating = (totalRating / userReviews.length).toFixed(1);
+    }
 
     // Calculate favorite tag (most frequently used tag)
     let favoriteTag = null;
-
     if (userReviews.length > 0) {
-      // Count all basicTags across all reviews
       const tagCounts = {};
-
       userReviews.forEach((review) => {
         if (review.basicTags && Array.isArray(review.basicTags)) {
           review.basicTags.forEach((tag) => {
@@ -144,7 +148,6 @@ const MyPageScreen = ({ navigation }) => {
         }
       });
 
-      // Find tag with highest count
       let maxCount = 0;
       Object.entries(tagCounts).forEach(([tag, count]) => {
         if (count > maxCount) {
@@ -154,128 +157,230 @@ const MyPageScreen = ({ navigation }) => {
       });
     }
 
-    setStatistics({ totalCoffees, favoriteTag });
+    setStatistics({ totalCoffees, favoriteTag, avgRating });
   };
 
   /**
-   * Handle logout button press
-   * F-3.1: Show confirmation alert before logout
+   * Calculate average flavor preference from user reviews
+   * Derives user's flavor profile from their review history
    */
-  const handleLogout = async () => {
-    console.log('🔴 handleLogout called'); // Debug log
+  const calculateFlavorPreference = (userReviews) => {
+    if (userReviews.length === 0) {
+      setFlavorPreference({
+        acidity: 0,
+        sweetness: 0,
+        body: 0,
+        bitterness: 0,
+        aroma: 0,
+      });
+      return;
+    }
 
-    // Web compatibility: use window.confirm for web, Alert for native
-    if (Platform.OS === 'web') {
-      const confirmed = window.confirm('정말 로그아웃 하시겠습니까?');
-      if (confirmed) {
-        try {
-          console.log('🔴 Signing out...'); // Debug log
-          await signOut();
-        } catch (error) {
-          console.error('Error signing out:', error);
-          window.alert('로그아웃에 실패했습니다. 다시 시도해주세요.');
+    // Sum up all flavor profiles
+    const totals = userReviews.reduce(
+      (acc, review) => {
+        if (review.flavorProfile) {
+          acc.acidity += review.flavorProfile.acidity || 0;
+          acc.sweetness += review.flavorProfile.sweetness || 0;
+          acc.body += review.flavorProfile.body || 0;
+          acc.bitterness += review.flavorProfile.bitterness || 0;
+          acc.aroma += review.flavorProfile.aroma || 0;
         }
+        return acc;
+      },
+      { acidity: 0, sweetness: 0, body: 0, bitterness: 0, aroma: 0 }
+    );
+
+    // Calculate averages
+    const count = userReviews.length;
+    setFlavorPreference({
+      acidity: Math.round(totals.acidity / count),
+      sweetness: Math.round(totals.sweetness / count),
+      body: Math.round(totals.body / count),
+      bitterness: Math.round(totals.bitterness / count),
+      aroma: Math.round(totals.aroma / count),
+    });
+  };
+
+  /**
+   * Generate flavor description based on user's preference
+   * Provides personalized insight into user's taste profile
+   */
+  const getFlavorDescription = () => {
+    if (statistics.totalCoffees === 0) {
+      return '아직 충분한 기록이 없습니다.\n다양한 커피를 시도해보세요!';
+    }
+
+    // Find dominant flavor characteristics
+    const flavors = [
+      { name: '산미', value: flavorPreference.acidity, key: 'acidity' },
+      { name: '단맛', value: flavorPreference.sweetness, key: 'sweetness' },
+      { name: '바디감', value: flavorPreference.body, key: 'body' },
+      { name: '쓴맛', value: flavorPreference.bitterness, key: 'bitterness' },
+      { name: '향', value: flavorPreference.aroma, key: 'aroma' },
+    ];
+
+    // Sort by value descending
+    flavors.sort((a, b) => b.value - a.value);
+
+    const topFlavor = flavors[0];
+    const secondFlavor = flavors[1];
+
+    if (topFlavor.value >= 4) {
+      return `${topFlavor.name}${topFlavor.value >= 4.5 ? '가 매우' : '와'} ${secondFlavor.name}이 풍부한 커피를 선호하시네요!\n에티오피아나 케냐 계열의 원두와 잘 맞아요.`;
+    }
+
+    return `균형잡힌 맛의 커피를 선호하시는군요!\n다양한 원두를 즐기실 수 있어요.`;
+  };
+
+  /**
+   * Handle settings button press
+   * Navigate to Settings screen
+   */
+  const handleSettingsPress = () => {
+    navigation.navigate('Settings');
+  };
+
+  /**
+   * Handle review edit
+   * Navigate to WriteReview screen with review data
+   */
+  const handleEditReview = (review) => {
+    navigation.navigate('WriteReview', {
+      editMode: true,
+      reviewId: review.id,
+      reviewData: review,
+      cafe: { id: review.cafeId, name: review.cafeName },
+    });
+  };
+
+  /**
+   * Handle review delete
+   * Show confirmation before deletion
+   */
+  const handleDeleteReview = (review) => {
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm('정말로 이 리뷰를 삭제하시겠습니까?');
+      if (confirmed) {
+        performDeleteReview(review);
       }
     } else {
       Alert.alert(
-        '로그아웃',
-        '정말 로그아웃 하시겠습니까?',
+        '리뷰 삭제',
+        '정말로 이 리뷰를 삭제하시겠습니까?',
         [
           {
             text: '취소',
             style: 'cancel',
           },
           {
-            text: '로그아웃',
+            text: '삭제',
             style: 'destructive',
-            onPress: async () => {
-              try {
-                console.log('🔴 Signing out...'); // Debug log
-                await signOut();
-              } catch (error) {
-                console.error('Error signing out:', error);
-                Alert.alert('오류', '로그아웃에 실패했습니다. 다시 시도해주세요.');
-              }
-            },
+            onPress: () => performDeleteReview(review),
           },
-        ],
-        { cancelable: true }
+        ]
       );
     }
   };
 
   /**
-   * Handle review item press
-   * Navigate to cafe detail page
+   * Perform actual review deletion
    */
-  const handleReviewPress = (review) => {
-    if (review.cafeId && navigation) {
-      navigation.navigate('CafeDetail', { cafeId: review.cafeId });
+  const performDeleteReview = async (review) => {
+    try {
+      await deleteReview(review.id);
+
+      if (Platform.OS === 'web') {
+        window.alert('리뷰가 성공적으로 삭제되었습니다.');
+      } else {
+        Alert.alert('삭제 완료', '리뷰가 성공적으로 삭제되었습니다.');
+      }
+
+      // Reload reviews
+      fetchUserReviews();
+    } catch (error) {
+      console.error('Error deleting review:', error);
+
+      if (Platform.OS === 'web') {
+        window.alert('리뷰 삭제에 실패했습니다. 다시 시도해주세요.');
+      } else {
+        Alert.alert('오류', '리뷰 삭제에 실패했습니다. 다시 시도해주세요.');
+      }
     }
   };
 
   /**
-   * v0.2: F-EDIT - Handle review edit
+   * Handle post/review press
+   * Navigate to cafe detail or review detail
    */
-  const handleEditReview = (review) => {
-    // Navigate to WriteReview screen with review data for editing
-    navigation.navigate('WriteReview', {
-      editMode: true,
+  const handlePostPress = (post) => {
+    if (post.cafeId && navigation) {
+      navigation.navigate('CafeDetail', { cafeId: post.cafeId });
+    }
+  };
+
+  /**
+   * Transform review data to match CoffeeCard expected format
+   */
+  const transformReviewToPost = (review) => {
+    return {
+      id: review.id,
+      cafeName: review.cafeName || '카페 이름 없음',
+      coffeeName: review.coffeeName || '커피',
+      location: review.location || review.cafeAddress,
+      imageUrl: review.photoUrls && review.photoUrls.length > 0 ? review.photoUrls[0] : null,
+      rating: review.rating || 0,
+      tags: review.basicTags || [],
+      flavorProfile: review.flavorProfile || {
+        acidity: 0,
+        sweetness: 0,
+        body: 0,
+        bitterness: 0,
+        aroma: 0,
+      },
+      author: {
+        name: user?.displayName || '익명',
+        avatar: user?.photoURL || null,
+        level: 'Barista',
+      },
+      description: review.comment || '',
+      likes: 0, // TODO: Implement likes in future version
+      comments: 0, // TODO: Implement comments in future version
+      date: formatDateRelative(review.createdAt),
+      // Additional fields for edit/delete
       reviewId: review.id,
+      cafeId: review.cafeId,
       reviewData: review,
-      cafe: { id: review.cafeId, name: review.cafeName }
-    });
+    };
   };
 
   /**
-   * v0.2: F-EDIT - Handle review delete
+   * Format date to relative time (e.g., "2시간 전")
    */
-  const handleDeleteReview = (review) => {
-    Alert.alert(
-      '리뷰 삭제',
-      '정말로 이 리뷰를 삭제하시겠습니까?',
-      [
-        {
-          text: '취소',
-          style: 'cancel'
-        },
-        {
-          text: '삭제',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteReview(review.id);
-              Alert.alert('삭제 완료', '리뷰가 성공적으로 삭제되었습니다.');
-              // Reload reviews
-              loadUserReviews();
-            } catch (error) {
-              console.error('Error deleting review:', error);
-              Alert.alert('오류', '리뷰 삭제에 실패했습니다. 다시 시도해주세요.');
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  /**
-   * Format timestamp to readable date
-   * @param {Object} timestamp - Firestore timestamp
-   * @returns {string} Formatted date string
-   */
-  const formatDate = (timestamp) => {
+  const formatDateRelative = (timestamp) => {
     if (!timestamp) return '';
 
     try {
-      // Firestore timestamp has toDate() method
       const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
 
-      // Format as YYYY.MM.DD
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-
-      return `${year}.${month}.${day}`;
+      if (diffMins < 60) {
+        return diffMins <= 1 ? '방금 전' : `${diffMins}분 전`;
+      } else if (diffHours < 24) {
+        return `${diffHours}시간 전`;
+      } else if (diffDays < 30) {
+        return `${diffDays}일 전`;
+      } else {
+        // Format as YYYY.MM.DD
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}.${month}.${day}`;
+      }
     } catch (error) {
       console.error('Error formatting date:', error);
       return '';
@@ -283,145 +388,66 @@ const MyPageScreen = ({ navigation }) => {
   };
 
   /**
-   * Render user profile section
-   * F-3.1: Display user info and logout button
+   * Render tab content
+   * "내 기록" shows user's reviews, "찜한 커피" shows saved items (future)
    */
-  const renderUserProfile = () => {
-    return (
-      <View style={styles.profileCard}>
-        {/* User display name */}
-        <Text style={styles.displayName}>{user?.displayName || '익명'}</Text>
-
-        {/* User email */}
-        <Text style={styles.email}>{user?.email || ''}</Text>
-
-        {/* Logout button */}
-        <CustomButton
-          title="로그아웃"
-          onPress={handleLogout}
-          variant="secondary"
-          style={styles.logoutButton}
-        />
-      </View>
-    );
-  };
-
-  /**
-   * Render statistics section
-   * F-3.2: Total coffees and favorite tag
-   */
-  const renderStatistics = () => {
-    return (
-      <View style={styles.statsCard}>
-        <Text style={styles.statsTitle}>나의 커피 기록</Text>
-
-        {/* Total coffees stat */}
-        <View style={styles.statItem}>
-          <Text style={styles.statText}>
-            총 <Text style={styles.statHighlight}>{statistics.totalCoffees}</Text>잔의 커피를 마셨어요.
-          </Text>
-        </View>
-
-        {/* Favorite tag stat */}
-        <View style={styles.statItem}>
-          {statistics.favoriteTag ? (
-            <Text style={styles.statText}>
-              나의 원픽 맛은 <Text style={styles.statHighlight}>#{statistics.favoriteTag}</Text>입니다.
-            </Text>
-          ) : (
-            <Text style={styles.statText}>아직 리뷰가 없습니다</Text>
-          )}
-        </View>
-      </View>
-    );
-  };
-
-  /**
-   * Render single review item
-   * F-3.3: Display review with cafe name, rating, tags, comment, date
-   * v0.2: F-PHOTO - Display photos
-   * v0.2: F-EDIT - Add edit/delete buttons
-   */
-  const renderReviewItem = ({ item }) => {
-    return (
-      <View style={styles.reviewItem}>
-        {/* Header with cafe name and action buttons */}
-        <View style={styles.reviewHeader}>
-          <Text style={styles.cafeName} onPress={() => handleReviewPress(item)}>
-            {item.cafeName || '카페 이름 없음'}
-          </Text>
-
-          {/* v0.2: F-EDIT - Edit/Delete buttons */}
-          <View style={styles.reviewActions}>
-            <TouchableOpacity
-              onPress={() => handleEditReview(item)}
-              style={styles.actionButton}
-            >
-              <Ionicons name="create-outline" size={20} color={Colors.brand} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => handleDeleteReview(item)}
-              style={styles.actionButton}
-            >
-              <Ionicons name="trash-outline" size={20} color={Colors.error} />
-            </TouchableOpacity>
+  const renderTabContent = () => {
+    if (activeTab === 'logs') {
+      if (reviewsWithCafeInfo.length === 0) {
+        return (
+          <View style={styles.emptyState}>
+            <Ionicons name="cafe-outline" size={48} color={Colors.stone300} />
+            <Text style={styles.emptyStateText}>아직 기록이 없습니다.</Text>
           </View>
+        );
+      }
+
+      return (
+        <View style={styles.postsContainer}>
+          {reviewsWithCafeInfo.map((review, index) => {
+            const post = transformReviewToPost(review);
+            return (
+              <View key={post.id} style={styles.postWrapper}>
+                <CoffeeCard post={post} index={index} onPress={() => handlePostPress(post)} />
+
+                {/* Edit/Delete action buttons */}
+                <View style={styles.reviewActions}>
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => handleEditReview(review)}
+                  >
+                    <Ionicons name="create-outline" size={20} color={Colors.stone600} />
+                    <Text style={styles.actionButtonText}>수정</Text>
+                  </TouchableOpacity>
+
+                  <View style={styles.actionDivider} />
+
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => handleDeleteReview(review)}
+                  >
+                    <Ionicons name="trash-outline" size={20} color={Colors.stone600} />
+                    <Text style={styles.actionButtonText}>삭제</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            );
+          })}
         </View>
+      );
+    }
 
-        {/* Star rating */}
-        <View style={styles.ratingContainer}>
-          <StarRating rating={item.rating} readonly={true} size={16} />
+    if (activeTab === 'saved') {
+      // TODO: Implement saved items feature in future version
+      return (
+        <View style={styles.emptyState}>
+          <Ionicons name="heart-outline" size={48} color={Colors.stone300} />
+          <Text style={styles.emptyStateText}>아직 찜한 커피가 없습니다.</Text>
         </View>
+      );
+    }
 
-        {/* v0.2: F-PHOTO - Display photos if available */}
-        {item.photoUrls && item.photoUrls.length > 0 && (
-          <View style={styles.photosContainer}>
-            {item.photoUrls.map((photoUrl, index) => (
-              <TouchableOpacity
-                key={`${item.id}-photo-${index}`}
-                onPress={() => {
-                  // TODO: Open full-screen image viewer
-                  console.log('Open photo:', photoUrl);
-                }}
-              >
-                <Image
-                  source={{ uri: photoUrl }}
-                  style={styles.photoThumbnail}
-                  resizeMode="cover"
-                />
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-
-        {/* Basic tags (맛 태그) */}
-        {item.basicTags && item.basicTags.length > 0 && (
-          <View style={styles.tagsContainer}>
-            {item.basicTags.map((tag, index) => (
-              <Tag
-                key={`${item.id}-tag-${index}`}
-                label={tag}
-                selected={false}
-                style={styles.tag}
-              />
-            ))}
-          </View>
-        )}
-
-        {/* Comment (한 줄 코멘트) */}
-        {item.comment && (
-          <Text style={styles.comment}>{item.comment}</Text>
-        )}
-
-        {/* Created date */}
-        {item.createdAt && (
-          <Text style={styles.reviewDate}>{formatDate(item.createdAt)}</Text>
-        )}
-
-        {/* Divider */}
-        <View style={styles.reviewDivider} />
-      </View>
-    );
+    return null;
   };
 
   // Show loading spinner while fetching data
@@ -436,30 +462,135 @@ const MyPageScreen = ({ navigation }) => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* F-3.1: User profile section */}
-        {renderUserProfile()}
-
-        {/* F-3.2: Statistics section */}
-        {renderStatistics()}
-
-        {/* F-3.3: Reviews section */}
-        <View style={styles.reviewsSection}>
-          <Text style={styles.reviewsTitle}>내가 작성한 리뷰</Text>
-
-          {/* Reviews list */}
-          {reviewsWithCafeInfo.length > 0 ? (
-            <View style={styles.reviewsList}>
-              {reviewsWithCafeInfo.map((review) => (
-                <View key={review.id}>
-                  {renderReviewItem({ item: review })}
+        {/* Header Section */}
+        <View style={styles.headerSection}>
+          <View style={styles.headerTop}>
+            {/* Avatar and Info */}
+            <View style={styles.profileInfo}>
+              <View style={styles.avatarContainer}>
+                {user?.photoURL ? (
+                  <Image
+                    source={{ uri: user.photoURL }}
+                    style={styles.avatar}
+                  />
+                ) : (
+                  <View style={styles.avatarFallback}>
+                    <Text style={styles.avatarText}>
+                      {(user?.displayName || '익명').charAt(0)}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <View style={styles.userInfo}>
+                <Text style={styles.userName}>{user?.displayName || '익명'}</Text>
+                <Text style={styles.userBio}>{user?.email || '오늘도 맛있는 한 잔 ☕️'}</Text>
+                <View style={styles.levelBadge}>
+                  <Ionicons name="trophy" size={12} color={Colors.amber700} />
+                  <Text style={styles.levelText}>Barista Level</Text>
                 </View>
-              ))}
+              </View>
             </View>
-          ) : (
-            <View style={styles.emptyReviews}>
-              <EmptyState message="아직 작성한 리뷰가 없습니다" />
+
+            {/* Settings Button (triggers logout) */}
+            <TouchableOpacity
+              style={styles.settingsButton}
+              onPress={handleSettingsPress}
+            >
+              <Ionicons name="settings-outline" size={20} color={Colors.stone600} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Stats */}
+          <View style={styles.statsContainer}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{statistics.totalCoffees}</Text>
+              <Text style={styles.statLabel}>기록</Text>
             </View>
-          )}
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{statistics.avgRating || '0.0'}</Text>
+              <Text style={styles.statLabel}>평균 별점</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>
+                {statistics.favoriteTag ? `#${statistics.favoriteTag}` : '-'}
+              </Text>
+              <Text style={styles.statLabel}>선호 태그</Text>
+            </View>
+          </View>
+
+          {/* Flavor Preference Card */}
+          <View style={styles.flavorCard}>
+            <View style={styles.flavorContent}>
+              <View style={styles.flavorTextContainer}>
+                <Text style={styles.flavorTitle}>나의 커피 취향</Text>
+                <Text style={styles.flavorDescription}>
+                  {getFlavorDescription()}
+                </Text>
+              </View>
+              {statistics.totalCoffees > 0 && (
+                <View style={styles.flavorProfileContainer}>
+                  <FlavorProfile flavorProfile={flavorPreference} />
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+
+        {/* Tabs Section */}
+        <View style={styles.tabsSection}>
+          {/* Tab Headers */}
+          <View style={styles.tabHeaders}>
+            <TouchableOpacity
+              style={[
+                styles.tabHeader,
+                activeTab === 'logs' && styles.tabHeaderActive,
+              ]}
+              onPress={() => setActiveTab('logs')}
+            >
+              <Ionicons
+                name="cafe"
+                size={16}
+                color={activeTab === 'logs' ? Colors.stone900 : Colors.stone500}
+              />
+              <Text
+                style={[
+                  styles.tabHeaderText,
+                  activeTab === 'logs' && styles.tabHeaderTextActive,
+                ]}
+              >
+                내 기록
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.tabHeader,
+                activeTab === 'saved' && styles.tabHeaderActive,
+              ]}
+              onPress={() => setActiveTab('saved')}
+            >
+              <Ionicons
+                name="heart"
+                size={16}
+                color={
+                  activeTab === 'saved' ? Colors.stone900 : Colors.stone500
+                }
+              />
+              <Text
+                style={[
+                  styles.tabHeaderText,
+                  activeTab === 'saved' && styles.tabHeaderTextActive,
+                ]}
+              >
+                찜한 커피
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Tab Content */}
+          <View style={styles.tabContent}>{renderTabContent()}</View>
         </View>
       </ScrollView>
     </View>
@@ -469,7 +600,7 @@ const MyPageScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.stone50,
   },
   scrollView: {
     flex: 1,
@@ -478,163 +609,225 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
 
-  // F-3.1: User profile card
-  profileCard: {
-    backgroundColor: Colors.background,
-    padding: 20,
-    marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    // iOS shadow
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    // Android shadow
-    elevation: 2,
-  },
-  displayName: {
-    ...Typography.h1,
-    color: Colors.brand,
-    marginBottom: 4,
-  },
-  email: {
-    ...Typography.body,
-    color: Colors.textSecondary,
-    marginBottom: 16,
-  },
-  logoutButton: {
-    marginTop: 4,
-  },
-
-  // F-3.2: Statistics card
-  statsCard: {
-    backgroundColor: Colors.background,
-    padding: 20,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    // iOS shadow
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    // Android shadow
-    elevation: 2,
-  },
-  statsTitle: {
-    ...Typography.h2,
-    color: Colors.textPrimary,
-    marginBottom: 16,
-  },
-  statItem: {
-    marginBottom: 8,
-  },
-  statText: {
-    ...Typography.body,
-    color: Colors.textPrimary,
-    lineHeight: 24,
-  },
-  statHighlight: {
-    ...Typography.body,
-    color: Colors.brand,
-    fontWeight: 'bold',
-  },
-
-  // F-3.3: Reviews section
-  reviewsSection: {
-    marginTop: 8,
+  // Header Section (ProfileScreen design)
+  headerSection: {
+    backgroundColor: Colors.backgroundWhite,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.stone200,
     paddingHorizontal: 16,
+    paddingTop: 40,
+    paddingBottom: 32,
   },
-  reviewsTitle: {
-    ...Typography.h2,
-    color: Colors.textPrimary,
-    marginBottom: 12,
-    paddingHorizontal: 4,
-  },
-  reviewsList: {
-    backgroundColor: Colors.background,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    // iOS shadow
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    // Android shadow
-    elevation: 2,
-  },
-  reviewItem: {
-    padding: 16,
-  },
-  // v0.2: F-EDIT - Review header with actions
-  reviewHeader: {
+  headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
+    alignItems: 'flex-start',
+    marginBottom: 24,
   },
-  reviewActions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  actionButton: {
-    padding: 4,
-  },
-  cafeName: {
-    ...Typography.h2,
-    color: Colors.brand,
+  profileInfo: {
     flex: 1,
-  },
-  ratingContainer: {
-    marginBottom: 8,
-  },
-  // v0.2: F-PHOTO - Photo display styles
-  photosContainer: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 12,
+    gap: 16,
   },
-  photoThumbnail: {
+  avatarContainer: {
     width: 80,
     height: 80,
-    borderRadius: 8,
-    backgroundColor: Colors.divider,
+    borderRadius: 40,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: Colors.stone100,
   },
-  tagsContainer: {
+  avatar: {
+    width: '100%',
+    height: '100%',
+  },
+  avatarFallback: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: Colors.stone300,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: {
+    fontSize: 32,
+    fontWeight: Typography.h1.fontWeight,
+    color: Colors.backgroundWhite,
+  },
+  userInfo: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  userName: {
+    fontSize: Typography.h1.fontSize,
+    fontWeight: Typography.h1.fontWeight,
+    color: Colors.stone800,
+    marginBottom: 4,
+  },
+  userBio: {
+    fontSize: Typography.caption.fontSize,
+    color: Colors.stone500,
+    marginBottom: 8,
+  },
+  levelBadge: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.amber100,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  levelText: {
+    fontSize: Typography.captionSmall.fontSize,
+    fontWeight: Typography.label.fontWeight,
+    color: Colors.amber700,
+  },
+  settingsButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.stone200,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundWhite,
+  },
+
+  // Stats (ProfileScreen design with real data)
+  statsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    marginBottom: 32,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: Typography.h2.fontSize,
+    fontWeight: Typography.h2.fontWeight,
+    color: Colors.stone800,
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: Typography.captionSmall.fontSize,
+    color: Colors.stone500,
+  },
+  statDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: Colors.stone200,
+  },
+
+  // Flavor Card (ProfileScreen design with calculated data)
+  flavorCard: {
+    backgroundColor: Colors.stone50,
+    borderRadius: 16,
+    padding: 16,
+  },
+  flavorContent: {
+    gap: 16,
+  },
+  flavorTextContainer: {
+    gap: 4,
+  },
+  flavorTitle: {
+    fontSize: Typography.caption.fontSize,
+    fontWeight: Typography.label.fontWeight,
+    color: Colors.stone800,
+  },
+  flavorDescription: {
+    fontSize: Typography.captionSmall.fontSize,
+    color: Colors.stone600,
+    lineHeight: 18,
+  },
+  flavorProfileContainer: {
+    paddingVertical: 8,
+  },
+
+  // Tabs Section (ProfileScreen design)
+  tabsSection: {
+    marginTop: 24,
+  },
+  tabHeaders: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.stone200,
+    paddingHorizontal: 16,
+    gap: 32,
+  },
+  tabHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingBottom: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabHeaderActive: {
+    borderBottomColor: Colors.stone900,
+  },
+  tabHeaderText: {
+    fontSize: Typography.body.fontSize,
+    color: Colors.stone500,
+  },
+  tabHeaderTextActive: {
+    fontWeight: Typography.label.fontWeight,
+    color: Colors.stone900,
+  },
+
+  // Tab Content (ProfileScreen design)
+  tabContent: {
+    marginTop: 24,
+  },
+  postsContainer: {
+    paddingHorizontal: 16,
+    gap: 16,
+  },
+  postWrapper: {
     marginBottom: 8,
   },
-  tag: {
-    marginRight: 6,
-    marginBottom: 6,
-  },
-  comment: {
-    ...Typography.body,
-    color: Colors.textPrimary,
-    lineHeight: 22,
-    marginBottom: 8,
-  },
-  reviewDate: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-    marginTop: 4,
-  },
-  reviewDivider: {
-    height: 1,
-    backgroundColor: Colors.divider,
+
+  // Review Actions (edit/delete buttons)
+  reviewActions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
     marginTop: 12,
+    paddingVertical: 8,
+    backgroundColor: Colors.stone50,
+    borderRadius: 8,
   },
-  emptyReviews: {
-    minHeight: 200,
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  actionButtonText: {
+    fontSize: Typography.caption.fontSize,
+    color: Colors.stone600,
+  },
+  actionDivider: {
+    width: 1,
+    height: 16,
+    backgroundColor: Colors.stone300,
+  },
+
+  // Empty State (ProfileScreen design)
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 80,
+  },
+  emptyStateText: {
+    fontSize: Typography.body.fontSize,
+    color: Colors.stone400,
+    marginTop: 16,
   },
 });
 

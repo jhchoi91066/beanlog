@@ -1,0 +1,633 @@
+// My Page Screen - 마이페이지 (마이페이지 탭)
+// 문서 참조: The Blueprint - F-3 마이페이지
+
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Alert,
+  Platform,
+  Image,
+  TouchableOpacity,
+} from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { Colors, Typography } from '../constants';
+import {
+  LoadingSpinner,
+  EmptyState,
+  CustomButton,
+  Tag,
+  StarRating,
+} from '../components';
+import { useAuth } from '../contexts/AuthContext';
+import { getReviewsByUser, deleteReview } from '../services/reviewService';
+import { getCafeById } from '../services/cafeService';
+import { Ionicons } from '@expo/vector-icons';
+
+const MyPageScreen = ({ navigation }) => {
+  const { user, signOut } = useAuth();
+
+  const [reviewsWithCafeInfo, setReviewsWithCafeInfo] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [statistics, setStatistics] = useState({
+    totalCoffees: 0,
+    favoriteTag: null,
+  });
+
+  // Fetch user reviews on mount and when screen comes into focus
+  useEffect(() => {
+    if (user) {
+      fetchUserReviews();
+    }
+  }, [user]);
+
+  // Refresh data when screen comes into focus (e.g., after writing a new review)
+  useFocusEffect(
+    React.useCallback(() => {
+      if (user) {
+        fetchUserReviews();
+      }
+    }, [user])
+  );
+
+  /**
+   * Fetch user's reviews and calculate statistics
+   * F-3.2: Calculate total coffees and favorite tag
+   * F-3.3: Display user's review list
+   */
+  const fetchUserReviews = async () => {
+    try {
+      setLoading(true);
+
+      // Fetch reviews by current user
+      const userReviews = await getReviewsByUser(user.uid);
+
+      // Calculate statistics
+      calculateStatistics(userReviews);
+
+      // Fetch cafe information for each review
+      // Note: This is a simple v0.1 approach. In production, consider:
+      // - Denormalizing cafe name in review document
+      // - Using batch fetching or caching
+      // - Implementing pagination for better performance
+      await enrichReviewsWithCafeInfo(userReviews);
+    } catch (error) {
+      console.error('Error fetching user reviews:', error);
+      // Handle error gracefully - show empty state
+      setReviewsWithCafeInfo([]);
+      setStatistics({ totalCoffees: 0, favoriteTag: null });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
+   * Enrich reviews with cafe information
+   * For v0.1, we fetch cafe data for each review individually
+   * @param {Array} userReviews - Array of review objects
+   */
+  const enrichReviewsWithCafeInfo = async (userReviews) => {
+    try {
+      // Fetch cafe info for each review
+      const enrichedReviews = await Promise.all(
+        userReviews.map(async (review) => {
+          try {
+            const cafe = await getCafeById(review.cafeId);
+            return {
+              ...review,
+              cafeName: cafe.name,
+              cafeAddress: cafe.address,
+            };
+          } catch (error) {
+            // If cafe fetch fails, use cafeId as fallback
+            console.error(`Failed to fetch cafe ${review.cafeId}:`, error);
+            return {
+              ...review,
+              cafeName: `카페 ID: ${review.cafeId}`,
+              cafeAddress: null,
+            };
+          }
+        })
+      );
+
+      setReviewsWithCafeInfo(enrichedReviews);
+    } catch (error) {
+      console.error('Error enriching reviews:', error);
+      // Fallback: use reviews without cafe info
+      setReviewsWithCafeInfo(userReviews);
+    }
+  };
+
+  /**
+   * Calculate user statistics
+   * F-3.2: Total coffees and favorite tag
+   * @param {Array} userReviews - Array of review objects
+   */
+  const calculateStatistics = (userReviews) => {
+    // Total coffees = number of reviews
+    const totalCoffees = userReviews.length;
+
+    // Calculate favorite tag (most frequently used tag)
+    let favoriteTag = null;
+
+    if (userReviews.length > 0) {
+      // Count all basicTags across all reviews
+      const tagCounts = {};
+
+      userReviews.forEach((review) => {
+        if (review.basicTags && Array.isArray(review.basicTags)) {
+          review.basicTags.forEach((tag) => {
+            tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+          });
+        }
+      });
+
+      // Find tag with highest count
+      let maxCount = 0;
+      Object.entries(tagCounts).forEach(([tag, count]) => {
+        if (count > maxCount) {
+          maxCount = count;
+          favoriteTag = tag;
+        }
+      });
+    }
+
+    setStatistics({ totalCoffees, favoriteTag });
+  };
+
+  /**
+   * Handle logout button press
+   * F-3.1: Show confirmation alert before logout
+   */
+  const handleLogout = async () => {
+    console.log('🔴 handleLogout called'); // Debug log
+
+    // Web compatibility: use window.confirm for web, Alert for native
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm('정말 로그아웃 하시겠습니까?');
+      if (confirmed) {
+        try {
+          console.log('🔴 Signing out...'); // Debug log
+          await signOut();
+        } catch (error) {
+          console.error('Error signing out:', error);
+          window.alert('로그아웃에 실패했습니다. 다시 시도해주세요.');
+        }
+      }
+    } else {
+      Alert.alert(
+        '로그아웃',
+        '정말 로그아웃 하시겠습니까?',
+        [
+          {
+            text: '취소',
+            style: 'cancel',
+          },
+          {
+            text: '로그아웃',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                console.log('🔴 Signing out...'); // Debug log
+                await signOut();
+              } catch (error) {
+                console.error('Error signing out:', error);
+                Alert.alert('오류', '로그아웃에 실패했습니다. 다시 시도해주세요.');
+              }
+            },
+          },
+        ],
+        { cancelable: true }
+      );
+    }
+  };
+
+  /**
+   * Handle review item press
+   * Navigate to cafe detail page
+   */
+  const handleReviewPress = (review) => {
+    if (review.cafeId && navigation) {
+      navigation.navigate('CafeDetail', { cafeId: review.cafeId });
+    }
+  };
+
+  /**
+   * v0.2: F-EDIT - Handle review edit
+   */
+  const handleEditReview = (review) => {
+    // Navigate to WriteReview screen with review data for editing
+    navigation.navigate('WriteReview', {
+      editMode: true,
+      reviewId: review.id,
+      reviewData: review,
+      cafe: { id: review.cafeId, name: review.cafeName }
+    });
+  };
+
+  /**
+   * v0.2: F-EDIT - Handle review delete
+   */
+  const handleDeleteReview = (review) => {
+    Alert.alert(
+      '리뷰 삭제',
+      '정말로 이 리뷰를 삭제하시겠습니까?',
+      [
+        {
+          text: '취소',
+          style: 'cancel'
+        },
+        {
+          text: '삭제',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteReview(review.id);
+              Alert.alert('삭제 완료', '리뷰가 성공적으로 삭제되었습니다.');
+              // Reload reviews
+              loadUserReviews();
+            } catch (error) {
+              console.error('Error deleting review:', error);
+              Alert.alert('오류', '리뷰 삭제에 실패했습니다. 다시 시도해주세요.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  /**
+   * Format timestamp to readable date
+   * @param {Object} timestamp - Firestore timestamp
+   * @returns {string} Formatted date string
+   */
+  const formatDate = (timestamp) => {
+    if (!timestamp) return '';
+
+    try {
+      // Firestore timestamp has toDate() method
+      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+
+      // Format as YYYY.MM.DD
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+
+      return `${year}.${month}.${day}`;
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return '';
+    }
+  };
+
+  /**
+   * Render user profile section
+   * F-3.1: Display user info and logout button
+   */
+  const renderUserProfile = () => {
+    return (
+      <View style={styles.profileCard}>
+        {/* User display name */}
+        <Text style={styles.displayName}>{user?.displayName || '익명'}</Text>
+
+        {/* User email */}
+        <Text style={styles.email}>{user?.email || ''}</Text>
+
+        {/* Logout button */}
+        <CustomButton
+          title="로그아웃"
+          onPress={handleLogout}
+          variant="secondary"
+          style={styles.logoutButton}
+        />
+      </View>
+    );
+  };
+
+  /**
+   * Render statistics section
+   * F-3.2: Total coffees and favorite tag
+   */
+  const renderStatistics = () => {
+    return (
+      <View style={styles.statsCard}>
+        <Text style={styles.statsTitle}>나의 커피 기록</Text>
+
+        {/* Total coffees stat */}
+        <View style={styles.statItem}>
+          <Text style={styles.statText}>
+            총 <Text style={styles.statHighlight}>{statistics.totalCoffees}</Text>잔의 커피를 마셨어요.
+          </Text>
+        </View>
+
+        {/* Favorite tag stat */}
+        <View style={styles.statItem}>
+          {statistics.favoriteTag ? (
+            <Text style={styles.statText}>
+              나의 원픽 맛은 <Text style={styles.statHighlight}>#{statistics.favoriteTag}</Text>입니다.
+            </Text>
+          ) : (
+            <Text style={styles.statText}>아직 리뷰가 없습니다</Text>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  /**
+   * Render single review item
+   * F-3.3: Display review with cafe name, rating, tags, comment, date
+   * v0.2: F-PHOTO - Display photos
+   * v0.2: F-EDIT - Add edit/delete buttons
+   */
+  const renderReviewItem = ({ item }) => {
+    return (
+      <View style={styles.reviewItem}>
+        {/* Header with cafe name and action buttons */}
+        <View style={styles.reviewHeader}>
+          <Text style={styles.cafeName} onPress={() => handleReviewPress(item)}>
+            {item.cafeName || '카페 이름 없음'}
+          </Text>
+
+          {/* v0.2: F-EDIT - Edit/Delete buttons */}
+          <View style={styles.reviewActions}>
+            <TouchableOpacity
+              onPress={() => handleEditReview(item)}
+              style={styles.actionButton}
+            >
+              <Ionicons name="create-outline" size={20} color={Colors.brand} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => handleDeleteReview(item)}
+              style={styles.actionButton}
+            >
+              <Ionicons name="trash-outline" size={20} color={Colors.error} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Star rating */}
+        <View style={styles.ratingContainer}>
+          <StarRating rating={item.rating} readonly={true} size={16} />
+        </View>
+
+        {/* v0.2: F-PHOTO - Display photos if available */}
+        {item.photoUrls && item.photoUrls.length > 0 && (
+          <View style={styles.photosContainer}>
+            {item.photoUrls.map((photoUrl, index) => (
+              <TouchableOpacity
+                key={`${item.id}-photo-${index}`}
+                onPress={() => {
+                  // TODO: Open full-screen image viewer
+                  console.log('Open photo:', photoUrl);
+                }}
+              >
+                <Image
+                  source={{ uri: photoUrl }}
+                  style={styles.photoThumbnail}
+                  resizeMode="cover"
+                />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {/* Basic tags (맛 태그) */}
+        {item.basicTags && item.basicTags.length > 0 && (
+          <View style={styles.tagsContainer}>
+            {item.basicTags.map((tag, index) => (
+              <Tag
+                key={`${item.id}-tag-${index}`}
+                label={tag}
+                selected={false}
+                style={styles.tag}
+              />
+            ))}
+          </View>
+        )}
+
+        {/* Comment (한 줄 코멘트) */}
+        {item.comment && (
+          <Text style={styles.comment}>{item.comment}</Text>
+        )}
+
+        {/* Created date */}
+        {item.createdAt && (
+          <Text style={styles.reviewDate}>{formatDate(item.createdAt)}</Text>
+        )}
+
+        {/* Divider */}
+        <View style={styles.reviewDivider} />
+      </View>
+    );
+  };
+
+  // Show loading spinner while fetching data
+  if (loading) {
+    return <LoadingSpinner visible={true} fullScreen={false} />;
+  }
+
+  return (
+    <View style={styles.container}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* F-3.1: User profile section */}
+        {renderUserProfile()}
+
+        {/* F-3.2: Statistics section */}
+        {renderStatistics()}
+
+        {/* F-3.3: Reviews section */}
+        <View style={styles.reviewsSection}>
+          <Text style={styles.reviewsTitle}>내가 작성한 리뷰</Text>
+
+          {/* Reviews list */}
+          {reviewsWithCafeInfo.length > 0 ? (
+            <View style={styles.reviewsList}>
+              {reviewsWithCafeInfo.map((review) => (
+                <View key={review.id}>
+                  {renderReviewItem({ item: review })}
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.emptyReviews}>
+              <EmptyState message="아직 작성한 리뷰가 없습니다" />
+            </View>
+          )}
+        </View>
+      </ScrollView>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 24,
+  },
+
+  // F-3.1: User profile card
+  profileCard: {
+    backgroundColor: Colors.backgroundWhite,
+    padding: 24,
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 12,
+    borderRadius: 16,
+    // iOS shadow
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    // Android shadow
+    elevation: 4,
+  },
+  displayName: {
+    ...Typography.h1,
+    color: Colors.stone800,
+    marginBottom: 8,
+  },
+  email: {
+    ...Typography.body,
+    color: Colors.stone500,
+    marginBottom: 20,
+  },
+  logoutButton: {
+    marginTop: 4,
+  },
+
+  // F-3.2: Statistics card
+  statsCard: {
+    backgroundColor: Colors.stone50,
+    padding: 24,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.stone100,
+  },
+  statsTitle: {
+    ...Typography.h2,
+    color: Colors.stone800,
+    marginBottom: 16,
+  },
+  statItem: {
+    marginBottom: 12,
+  },
+  statText: {
+    ...Typography.body,
+    color: Colors.stone700,
+    lineHeight: 24,
+  },
+  statHighlight: {
+    ...Typography.body,
+    color: Colors.amber600,
+    fontWeight: 'bold',
+  },
+
+  // F-3.3: Reviews section
+  reviewsSection: {
+    marginTop: 8,
+    paddingHorizontal: 16,
+  },
+  reviewsTitle: {
+    ...Typography.h2,
+    color: Colors.stone800,
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  reviewsList: {
+    backgroundColor: Colors.backgroundWhite,
+    borderRadius: 16,
+    // iOS shadow
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    // Android shadow
+    elevation: 3,
+  },
+  reviewItem: {
+    padding: 16,
+  },
+  // v0.2: F-EDIT - Review header with actions
+  reviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  reviewActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  actionButton: {
+    padding: 4,
+  },
+  cafeName: {
+    ...Typography.h3,
+    color: Colors.stone800,
+    flex: 1,
+  },
+  ratingContainer: {
+    marginBottom: 12,
+  },
+  // v0.2: F-PHOTO - Photo display styles
+  photosContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  photoThumbnail: {
+    width: 100,
+    height: 100,
+    borderRadius: 12,
+    backgroundColor: Colors.stone200,
+  },
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 12,
+    gap: 8,
+  },
+  tag: {
+    marginRight: 0,
+    marginBottom: 0,
+  },
+  comment: {
+    ...Typography.body,
+    color: Colors.stone700,
+    lineHeight: 22,
+    marginBottom: 8,
+  },
+  reviewDate: {
+    ...Typography.caption,
+    color: Colors.stone400,
+    marginTop: 4,
+  },
+  reviewDivider: {
+    height: 1,
+    backgroundColor: Colors.stone200,
+    marginTop: 12,
+  },
+  emptyReviews: {
+    minHeight: 200,
+    backgroundColor: Colors.backgroundWhite,
+    borderRadius: 16,
+  },
+});
+
+export default MyPageScreen;

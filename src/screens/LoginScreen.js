@@ -18,14 +18,25 @@ const LoginScreen = () => {
   const [displayName, setDisplayName] = useState('');
 
   const handleEmailSignIn = async () => {
-    if (!email || !password) {
+    // Trim whitespace from inputs
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+
+    if (!trimmedEmail || !trimmedPassword) {
       Alert.alert('오류', '이메일과 비밀번호를 입력해주세요.');
+      return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      Alert.alert('오류', '올바른 이메일 형식을 입력해주세요.\n예: user@example.com');
       return;
     }
 
     try {
       setLoading(true);
-      await signInWithEmail(email, password);
+      await signInWithEmail(trimmedEmail, trimmedPassword);
     } catch (error) {
       console.error('Email Sign-In Error:', error);
       let errorMessage = '로그인 실패';
@@ -43,19 +54,31 @@ const LoginScreen = () => {
   };
 
   const handleEmailSignUp = async () => {
-    if (!email || !password || !displayName) {
+    // Trim whitespace from inputs
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+    const trimmedDisplayName = displayName.trim();
+
+    if (!trimmedEmail || !trimmedPassword || !trimmedDisplayName) {
       Alert.alert('오류', '모든 정보를 입력해주세요.');
       return;
     }
 
-    if (password.length < 6) {
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      Alert.alert('오류', '올바른 이메일 형식을 입력해주세요.\n예: user@example.com');
+      return;
+    }
+
+    if (trimmedPassword.length < 6) {
       Alert.alert('오류', '비밀번호는 최소 6자 이상이어야 합니다.');
       return;
     }
 
     try {
       setLoading(true);
-      await signUpWithEmail(email, password, displayName);
+      await signUpWithEmail(trimmedEmail, trimmedPassword, trimmedDisplayName);
       Alert.alert('회원가입 성공', '환영합니다!');
     } catch (error) {
       console.error('Email Sign-Up Error:', error);

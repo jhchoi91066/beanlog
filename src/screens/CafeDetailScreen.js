@@ -7,11 +7,12 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  ScrollView,
   Image,
   TouchableOpacity,
+  Linking,
 } from 'react-native';
 import PropTypes from 'prop-types';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography } from '../constants';
 import { LoadingSpinner, EmptyState, Tag, StarRating } from '../components';
 import { getCafeById } from '../services/cafeService';
@@ -77,8 +78,7 @@ const CafeDetailScreen = ({ route }) => {
               <TouchableOpacity
                 key={`${item.id}-photo-${index}`}
                 onPress={() => {
-                  // TODO: Open full-screen image viewer
-                  console.log('Open photo:', photoUrl);
+                  // Full-screen image viewer will be implemented in future version
                 }}
               >
                 <Image
@@ -118,6 +118,7 @@ const CafeDetailScreen = ({ route }) => {
 
   /**
    * Render cafe header section
+   * v0.2: F-ENHANCED - Added Instagram, parking, phone, closed days
    */
   const renderCafeHeader = () => {
     if (!cafe) return null;
@@ -145,6 +146,50 @@ const CafeDetailScreen = ({ route }) => {
             ))}
           </View>
         )}
+
+        {/* v0.2: F-ENHANCED - Enhanced cafe information */}
+        <View style={styles.enhancedInfoSection}>
+          {/* Phone number */}
+          {cafe.phoneNumber && (
+            <TouchableOpacity
+              style={styles.infoRow}
+              onPress={() => Linking.openURL(`tel:${cafe.phoneNumber}`)}
+            >
+              <Ionicons name="call-outline" size={20} color={Colors.brand} />
+              <Text style={styles.infoText}>{cafe.phoneNumber}</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Instagram */}
+          {cafe.instagramHandle && (
+            <TouchableOpacity
+              style={styles.infoRow}
+              onPress={() => {
+                const url = cafe.instagramUrl || `https://instagram.com/${cafe.instagramHandle.replace('@', '')}`;
+                Linking.openURL(url);
+              }}
+            >
+              <Ionicons name="logo-instagram" size={20} color={Colors.accent} />
+              <Text style={[styles.infoText, styles.instagramText]}>{cafe.instagramHandle}</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Parking info */}
+          {cafe.parkingInfo && (
+            <View style={styles.infoRow}>
+              <Ionicons name="car-outline" size={20} color={Colors.brand} />
+              <Text style={styles.infoText}>{cafe.parkingInfo}</Text>
+            </View>
+          )}
+
+          {/* Closed days */}
+          {cafe.closedDays && cafe.closedDays.length > 0 && (
+            <View style={styles.infoRow}>
+              <Ionicons name="close-circle-outline" size={20} color={Colors.error} />
+              <Text style={styles.infoText}>휴무일: {cafe.closedDays.join(', ')}</Text>
+            </View>
+          )}
+        </View>
 
         {/* Section divider */}
         <View style={styles.sectionDivider} />
@@ -214,31 +259,56 @@ const styles = StyleSheet.create({
   // Cafe header section
   cafeHeader: {
     padding: 20,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.backgroundWhite,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.stone100,
   },
   cafeName: {
     ...Typography.h1,
-    color: Colors.brand,
+    color: Colors.stone800,
     marginBottom: 8,
   },
   cafeAddress: {
     ...Typography.body,
-    color: Colors.textSecondary,
+    color: Colors.stone600,
     marginBottom: 12,
   },
   locationTagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginTop: 4,
+    marginTop: 8,
+    gap: 8,
   },
   locationTag: {
-    marginRight: 6,
-    marginBottom: 6,
+    marginRight: 0,
+    marginBottom: 0,
+  },
+  // v0.2: F-ENHANCED - Enhanced info section
+  enhancedInfoSection: {
+    marginTop: 20,
+    backgroundColor: Colors.stone50,
+    padding: 16,
+    borderRadius: 12,
+    gap: 12,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  infoText: {
+    ...Typography.body,
+    color: Colors.stone700,
+    flex: 1,
+  },
+  instagramText: {
+    color: Colors.amber600,
+    fontWeight: '600',
   },
   sectionDivider: {
     height: 8,
-    backgroundColor: Colors.divider,
-    marginTop: 16,
+    backgroundColor: Colors.stone100,
+    marginTop: 20,
     marginHorizontal: -20, // Extend to screen edges
   },
   // Reviews section
@@ -246,24 +316,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 12,
+    backgroundColor: Colors.backgroundWhite,
   },
   reviewsTitle: {
     ...Typography.h2,
-    color: Colors.textPrimary,
+    color: Colors.stone800,
   },
   // Review item
   reviewItem: {
     paddingHorizontal: 20,
     paddingVertical: 16,
+    backgroundColor: Colors.backgroundWhite,
   },
   userName: {
     ...Typography.body,
-    color: Colors.textPrimary,
+    color: Colors.stone800,
     fontWeight: '600',
     marginBottom: 8,
   },
   ratingContainer: {
-    marginBottom: 8,
+    marginBottom: 12,
   },
   // v0.2: F-PHOTO - Photo display styles
   photosContainer: {
@@ -273,34 +345,36 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   photoThumbnail: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-    backgroundColor: Colors.divider,
+    width: 100,
+    height: 100,
+    borderRadius: 12,
+    backgroundColor: Colors.stone200,
   },
   tagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: 8,
+    marginBottom: 12,
+    gap: 8,
   },
   tag: {
-    marginRight: 6,
-    marginBottom: 6,
+    marginRight: 0,
+    marginBottom: 0,
   },
   comment: {
     ...Typography.body,
-    color: Colors.textPrimary,
+    color: Colors.stone700,
     lineHeight: 22,
   },
   reviewDivider: {
     height: 1,
-    backgroundColor: Colors.divider,
+    backgroundColor: Colors.stone200,
     marginTop: 16,
   },
   // Empty reviews state
   emptyReviews: {
     flex: 1,
     minHeight: 300,
+    backgroundColor: Colors.backgroundWhite,
   },
 });
 

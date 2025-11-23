@@ -1,26 +1,29 @@
 {
   "expo": {
-    "name": "beanlog-temp",
-    "slug": "beanlog-temp",
-    "version": "1.0.0",
+    "name": "BeanLog",
+    "slug": "beanlog",
+    "version": "0.2.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "owner": "jhcxx2xx",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.jhcxx2xx.beanlog-temp"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.jhcxx2xx.beanlogtemp"
     },
     "web": {
       "favicon": "./assets/favicon.png"

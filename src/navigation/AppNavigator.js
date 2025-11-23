@@ -2,6 +2,7 @@
 // 문서 참조: The Blueprint - G-0.2 네비게이션, G-0.4 Onboarding
 
 import { useState, useEffect } from 'react';
+import { View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -9,7 +10,10 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useAuth } from '../contexts';
-import { LoginScreen, HomeScreen, CafeDetailScreen, WriteReviewScreen, MyPageScreen, OnboardingScreen } from '../screens';
+import { LoginScreen, CafeDetailScreen, WriteReviewScreen, MyPageScreen, OnboardingScreen, SettingsScreen } from '../screens';
+import FeedHomeScreen from '../screens/FeedHomeScreen';
+import SearchScreen from '../screens/SearchScreen';
+import ExploreScreen from '../screens/ExploreScreen';
 import { Colors } from '../constants';
 import { LoadingSpinner } from '../components';
 
@@ -32,7 +36,7 @@ const HomeStack = () => {
     >
       <Stack.Screen
         name="HomeList"
-        component={HomeScreen}
+        component={FeedHomeScreen}
         options={{
           headerTitle: 'BeanLog',
         }}
@@ -49,7 +53,39 @@ const HomeStack = () => {
   );
 };
 
-// Bottom Tab Navigator (인증 후 메인 화면)
+// MyPage Stack Navigator (마이페이지 → 설정)
+const MyPageStack = () => {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: Colors.background,
+        },
+        headerTintColor: Colors.brand,
+        headerTitleStyle: {
+          fontWeight: 'bold',
+        },
+      }}
+    >
+      <Stack.Screen
+        name="MyPageMain"
+        component={MyPageScreen}
+        options={{
+          headerTitle: '마이페이지',
+        }}
+      />
+      <Stack.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{
+          headerShown: false, // SettingsScreen has its own header
+        }}
+      />
+    </Stack.Navigator>
+  );
+};
+
+// Bottom Tab Navigator (인증 후 메인 화면) - Matches BeanLog_design structure
 const MainTabs = () => {
   return (
     <Tab.Navigator
@@ -59,20 +95,54 @@ const MainTabs = () => {
 
           if (route.name === 'Home') {
             iconName = focused ? 'home' : 'home-outline';
-          } else if (route.name === 'WriteReview') {
-            iconName = focused ? 'create' : 'create-outline';
+          } else if (route.name === 'Search') {
+            iconName = focused ? 'search' : 'search-outline';
+          } else if (route.name === 'Record') {
+            iconName = 'add-circle'; // Always filled for highlighted effect
+          } else if (route.name === 'Explore') {
+            iconName = focused ? 'compass' : 'compass-outline';
           } else if (route.name === 'MyPage') {
             iconName = focused ? 'person' : 'person-outline';
           }
 
+          // Special styling for Record button
+          if (route.name === 'Record') {
+            return (
+              <View style={{
+                backgroundColor: Colors.stone800,
+                borderRadius: 30,
+                width: 56,
+                height: 56,
+                justifyContent: 'center',
+                alignItems: 'center',
+                marginTop: -24,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 8,
+                elevation: 8,
+              }}>
+                <Ionicons name={iconName} size={32} color={Colors.backgroundWhite} />
+              </View>
+            );
+          }
+
           return <Ionicons name={iconName} size={size} color={color} />;
         },
-        tabBarActiveTintColor: Colors.brand,
-        tabBarInactiveTintColor: Colors.textSecondary,
+        tabBarActiveTintColor: Colors.amber600,
+        tabBarInactiveTintColor: Colors.textTertiary,
         tabBarStyle: {
           borderTopColor: Colors.border,
+          height: 60,
+          paddingBottom: 8,
+          paddingTop: 8,
+          backgroundColor: Colors.backgroundWhite,
         },
-        headerShown: false, // Hide header for tabs since Home Stack has its own header
+        tabBarLabelStyle: {
+          fontSize: 10,
+          fontWeight: '500',
+        },
+        headerShown: false,
       })}
     >
       <Tab.Screen
@@ -83,10 +153,26 @@ const MainTabs = () => {
         }}
       />
       <Tab.Screen
-        name="WriteReview"
+        name="Search"
+        component={SearchScreen}
+        options={{
+          tabBarLabel: '검색',
+          headerShown: true,
+          headerTitle: '검색',
+          headerStyle: {
+            backgroundColor: Colors.background,
+          },
+          headerTintColor: Colors.brand,
+          headerTitleStyle: {
+            fontWeight: 'bold',
+          },
+        }}
+      />
+      <Tab.Screen
+        name="Record"
         component={WriteReviewScreen}
         options={{
-          tabBarLabel: '리뷰 쓰기',
+          tabBarLabel: '',
           headerShown: true,
           headerTitle: '리뷰 작성',
           headerStyle: {
@@ -99,12 +185,12 @@ const MainTabs = () => {
         }}
       />
       <Tab.Screen
-        name="MyPage"
-        component={MyPageScreen}
+        name="Explore"
+        component={ExploreScreen}
         options={{
-          tabBarLabel: '마이',
+          tabBarLabel: '탐색',
           headerShown: true,
-          headerTitle: '마이페이지',
+          headerTitle: '탐색',
           headerStyle: {
             backgroundColor: Colors.background,
           },
@@ -112,6 +198,14 @@ const MainTabs = () => {
           headerTitleStyle: {
             fontWeight: 'bold',
           },
+        }}
+      />
+      <Tab.Screen
+        name="MyPage"
+        component={MyPageStack}
+        options={{
+          tabBarLabel: '마이',
+          headerShown: false, // MyPageStack has its own headers
         }}
       />
     </Tab.Navigator>

@@ -13,7 +13,7 @@ import {
   orderBy,
   serverTimestamp
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, auth } from './firebase';
 
 /**
  * 특정 카페의 리뷰 목록 가져오기 (최신순)
@@ -70,26 +70,41 @@ export const getReviewsByUser = async (userId) => {
  * @param {Object} reviewData - 리뷰 데이터
  * @param {string} reviewData.userId - 작성자 ID
  * @param {string} reviewData.cafeId - 카페 ID
+ * @param {string} [reviewData.cafeName] - 카페 이름 (선택)
+ * @param {string} [reviewData.cafeAddress] - 카페 주소 (선택)
  * @param {number} reviewData.rating - 전체 평점 (1-5)
  * @param {Array} reviewData.basicTags - 맛 태그 배열
  * @param {string} [reviewData.comment] - 한 줄 코멘트 (선택)
+ * @param {string} [reviewData.coffeeName] - 커피/메뉴 이름 (선택)
  * @param {number} [reviewData.acidity] - 산미 (1-5, 선택)
  * @param {number} [reviewData.body] - 바디 (1-5, 선택)
+ * @param {Object} [reviewData.flavorProfile] - 맛 프로필 객체 (선택)
  * @param {Array} [reviewData.advancedTags] - 상세 향 태그 (선택)
  * @param {string} [reviewData.roasting] - 로스팅 정도 (선택)
+ * @param {Array} [reviewData.photoUrls] - 사진 URL 배열 (선택)
  * @returns {Promise<Object>} 생성된 리뷰 정보
+ *
+ * Note: This function automatically adds userDisplayName and userPhotoURL
+ * from the currently authenticated user for community feed display
  */
 export const createReview = async (reviewData) => {
   try {
     const reviewsRef = collection(db, 'reviews');
-    const docRef = await addDoc(reviewsRef, {
+
+    // Add user display info from current auth user for feed display
+    const currentUser = auth.currentUser;
+    const reviewWithUserInfo = {
       ...reviewData,
+      userDisplayName: currentUser?.displayName || '익명',
+      userPhotoURL: currentUser?.photoURL || null,
       createdAt: serverTimestamp()
-    });
+    };
+
+    const docRef = await addDoc(reviewsRef, reviewWithUserInfo);
 
     return {
       id: docRef.id,
-      ...reviewData
+      ...reviewWithUserInfo
     };
   } catch (error) {
     console.error('Error creating review:', error);

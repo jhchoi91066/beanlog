@@ -10,10 +10,12 @@ import {
   TouchableOpacity,
   Image,
   ScrollView,
+  Modal,
 } from 'react-native';
 import PropTypes from 'prop-types';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography } from '../constants';
-import { LoadingSpinner, EmptyState, Tag } from '../components';
+import { LoadingSpinner, EmptyState, Tag, NaverMapView } from '../components';
 import { getAllCafes, getCafesByLocation } from '../services/cafeService';
 
 // Available location filters from The Blueprint
@@ -28,6 +30,11 @@ const HomeScreen = ({ navigation }) => {
   const [cafes, setCafes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedLocation, setSelectedLocation] = useState('all');
+
+  // v0.2: F-MAP - Map/List view toggle
+  const [viewMode, setViewMode] = useState('list'); // 'list' or 'map'
+  const [selectedCafe, setSelectedCafe] = useState(null); // For bottom sheet
+  const [showBottomSheet, setShowBottomSheet] = useState(false);
 
   // Fetch cafes on component mount and when filter changes
   useEffect(() => {
@@ -72,6 +79,24 @@ const HomeScreen = ({ navigation }) => {
    */
   const handleCafePress = (cafeId) => {
     navigation.navigate('CafeDetail', { cafeId });
+  };
+
+  /**
+   * v0.2: F-MAP - Handle map marker press
+   */
+  const handleMarkerPress = (cafe) => {
+    setSelectedCafe(cafe);
+    setShowBottomSheet(true);
+  };
+
+  /**
+   * v0.2: F-MAP - Close bottom sheet and navigate to cafe detail
+   */
+  const handleBottomSheetCafePress = () => {
+    if (selectedCafe) {
+      setShowBottomSheet(false);
+      navigation.navigate('CafeDetail', { cafeId: selectedCafe.id });
+    }
   };
 
   /**
@@ -168,11 +193,35 @@ const HomeScreen = ({ navigation }) => {
         {renderLocationFilters()}
       </View>
 
-      {/* Cafe list */}
+      {/* v0.2: F-MAP - View mode toggle button */}
+      <TouchableOpacity
+        style={styles.viewToggleButton}
+        onPress={() => setViewMode(viewMode === 'list' ? 'map' : 'list')}
+      >
+        <Ionicons
+          name={viewMode === 'list' ? 'map' : 'list'}
+          size={24}
+          color={Colors.background}
+        />
+      </TouchableOpacity>
+
+      {/* Cafe list or map view */}
       <View style={styles.listWrapper}>
         {cafes.length === 0 ? (
           <EmptyState message="등록된 카페가 없습니다" />
+        ) : viewMode === 'map' ? (
+          // v0.2: F-MAP - Map View
+          <NaverMapView
+            cafes={cafes}
+            onMarkerPress={handleMarkerPress}
+            initialRegion={{
+              latitude: 37.5665,
+              longitude: 126.9780,
+              zoom: 12,
+            }}
+          />
         ) : (
+          // List View
           <FlatList
             data={cafes}
             renderItem={renderCafeItem}
@@ -182,6 +231,53 @@ const HomeScreen = ({ navigation }) => {
           />
         )}
       </View>
+
+      {/* v0.2: F-MAP - Bottom sheet for selected cafe */}
+      <Modal
+        visible={showBottomSheet}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowBottomSheet(false)}
+      >
+        <TouchableOpacity
+          style={styles.bottomSheetOverlay}
+          activeOpacity={1}
+          onPress={() => setShowBottomSheet(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.bottomSheet}>
+              {selectedCafe && (
+                <>
+                  <View style={styles.bottomSheetHandle} />
+                  <TouchableOpacity
+                    onPress={handleBottomSheetCafePress}
+                    style={styles.bottomSheetContent}
+                  >
+                    <Text style={styles.bottomSheetTitle}>{selectedCafe.name}</Text>
+                    <Text style={styles.bottomSheetAddress}>{selectedCafe.address}</Text>
+                    {selectedCafe.locationTags && selectedCafe.locationTags.length > 0 && (
+                      <View style={styles.bottomSheetTags}>
+                        {selectedCafe.locationTags.slice(0, 3).map((tag, index) => (
+                          <Tag
+                            key={`bottom-${index}`}
+                            label={tag}
+                            selected={false}
+                            style={styles.bottomSheetTag}
+                          />
+                        ))}
+                      </View>
+                    )}
+                    <Text style={styles.bottomSheetAction}>탭하여 자세히 보기 →</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 };
@@ -289,6 +385,77 @@ const styles = StyleSheet.create({
   rating: {
     ...Typography.caption,
     color: Colors.textSecondary,
+  },
+
+  // v0.2: F-MAP - View toggle button
+  viewToggleButton: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.brand,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 100,
+    // Shadow
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+
+  // v0.2: F-MAP - Bottom sheet styles
+  bottomSheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  bottomSheet: {
+    backgroundColor: Colors.background,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 32,
+    maxHeight: '40%',
+  },
+  bottomSheetHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: Colors.divider,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  bottomSheetContent: {
+    paddingHorizontal: 24,
+  },
+  bottomSheetTitle: {
+    ...Typography.h1,
+    color: Colors.brand,
+    marginBottom: 8,
+  },
+  bottomSheetAddress: {
+    ...Typography.body,
+    color: Colors.textSecondary,
+    marginBottom: 12,
+  },
+  bottomSheetTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 16,
+  },
+  bottomSheetTag: {
+    marginRight: 6,
+    marginBottom: 6,
+  },
+  bottomSheetAction: {
+    ...Typography.caption,
+    color: Colors.accent,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });
 
