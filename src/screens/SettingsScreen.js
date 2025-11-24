@@ -25,20 +25,17 @@ const SettingsScreen = ({ navigation }) => {
 
   // Navigate to Profile Edit screen
   const handleProfileEdit = () => {
-    // Profile edit screen not yet implemented
-    Alert.alert('준비중', '프로필 편집 기능은 곧 출시됩니다.');
+    navigation.navigate('ProfileEdit');
   };
 
   // Navigate to Privacy & Security screen
   const handlePrivacySecurity = () => {
-    // Privacy & Security screen not yet implemented
-    Alert.alert('준비중', '개인정보 및 보안 설정은 곧 출시됩니다.');
+    navigation.navigate('PrivacySecurity');
   };
 
   // Navigate to Help & Support screen
   const handleHelpSupport = () => {
-    // Help & Support screen not yet implemented
-    Alert.alert('준비중', '도움말 기능은 곧 출시됩니다.');
+    navigation.navigate('Support');
   };
 
   // Toggle notifications

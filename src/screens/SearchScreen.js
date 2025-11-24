@@ -16,6 +16,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import Colors from '../constants/colors';
 import Typography from '../constants/typography';
 import {
@@ -54,6 +55,15 @@ const SearchScreen = ({ navigation, route }) => {
       }, 100);
     }
   }, [route?.params?.prefilledSearch]);
+
+  // Reset state on tab press
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('tabPress', (e) => {
+      // Reset state when tab is pressed
+      clearSearch();
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   /**
    * Load initial data: all cafes, recent searches, trending keywords
@@ -301,35 +311,45 @@ const SearchScreen = ({ navigation, route }) => {
         {/* Map Search Banner */}
         <TouchableOpacity
           style={styles.mapBanner}
-          onPress={() => setViewMode('map')}
+          onPress={() => {
+            setViewMode('map');
+            setSearched(true);
+          }}
           activeOpacity={0.8}
         >
-          <View style={styles.mapBannerContent}>
-            <View style={styles.mapBannerTextContainer}>
-              <View style={styles.mapBannerTitleRow}>
-                <Ionicons name="map" size={20} color={Colors.amber400} />
-                <Text style={styles.mapBannerTitle}>지도로 카페 찾기</Text>
+          <LinearGradient
+            colors={[Colors.stone900, Colors.stone800]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.mapBannerGradient}
+          >
+            <View style={styles.mapBannerContent}>
+              <View style={styles.mapBannerTextContainer}>
+                <View style={styles.mapBannerTitleRow}>
+                  <Ionicons name="map" size={20} color={Colors.amber400} />
+                  <Text style={styles.mapBannerTitle}>지도로 카페 찾기</Text>
+                </View>
+                <Text style={styles.mapBannerSubtitle}>
+                  내 주변의 맛있는 카페를 지도에서 확인해보세요
+                </Text>
               </View>
-              <Text style={styles.mapBannerSubtitle}>
-                내 주변의 맛있는 카페를 지도에서 확인해보세요
-              </Text>
+              <View style={styles.mapBannerIcon}>
+                <Ionicons
+                  name="arrow-forward"
+                  size={20}
+                  color={Colors.backgroundWhite}
+                />
+              </View>
             </View>
-            <View style={styles.mapBannerIcon}>
+            {/* Decorative background icon */}
+            <View style={styles.mapBannerDecor}>
               <Ionicons
-                name="arrow-forward"
-                size={20}
-                color={Colors.backgroundWhite}
+                name="map-outline"
+                size={120}
+                color="rgba(255, 255, 255, 0.05)"
               />
             </View>
-          </View>
-          {/* Decorative background icon */}
-          <View style={styles.mapBannerDecor}>
-            <Ionicons
-              name="map-outline"
-              size={120}
-              color="rgba(255, 255, 255, 0.05)"
-            />
-          </View>
+          </LinearGradient>
         </TouchableOpacity>
 
         {/* Recent Searches */}
@@ -413,7 +433,7 @@ const SearchScreen = ({ navigation, route }) => {
             returnKeyType="search"
             autoFocus={viewMode === 'list'}
           />
-          {viewMode === 'list' && searchText.length > 0 && (
+          {viewMode === 'list' && (searchText.length > 0 || searched) && (
             <TouchableOpacity
               style={styles.clearIconContainer}
               onPress={clearSearch}
@@ -694,11 +714,24 @@ const styles = StyleSheet.create({
   },
   mapBanner: {
     position: 'relative',
-    backgroundColor: Colors.stone900,
     borderRadius: 16,
-    padding: 20,
     marginBottom: 32,
     overflow: 'hidden',
+    // Shadow
+    ...Platform.select({
+      ios: {
+        shadowColor: Colors.shadow,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  },
+  mapBannerGradient: {
+    padding: 20,
   },
   mapBannerContent: {
     flexDirection: 'row',

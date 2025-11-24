@@ -10,10 +10,25 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useAuth } from '../contexts';
-import { LoginScreen, CafeDetailScreen, WriteReviewScreen, MyPageScreen, OnboardingScreen, SettingsScreen } from '../screens';
+import {
+  LoginScreen,
+  CafeDetailScreen,
+  WriteReviewScreen,
+  MyPageScreen,
+  OnboardingScreen,
+  SettingsScreen,
+  CommunityScreen,
+  PostDetailScreen,
+  WritePostScreen,
+  ProfileEditScreen,
+  PrivacySecurityScreen,
+  SupportScreen
+} from '../screens';
 import FeedHomeScreen from '../screens/FeedHomeScreen';
-import SearchScreen from '../screens/SearchScreen';
 import ExploreScreen from '../screens/ExploreScreen';
+import CollectionDetailScreen from '../screens/CollectionDetailScreen';
+import CategoryDetailScreen from '../screens/CategoryDetailScreen';
+import SearchScreen from '../screens/SearchScreen';
 import { Colors } from '../constants';
 import { LoadingSpinner } from '../components';
 
@@ -41,14 +56,7 @@ const HomeStack = () => {
           headerTitle: 'BeanLog',
         }}
       />
-      <Stack.Screen
-        name="CafeDetail"
-        component={CafeDetailScreen}
-        options={{
-          headerTitle: '카페 상세',
-          headerBackTitle: '뒤로',
-        }}
-      />
+
     </Stack.Navigator>
   );
 };
@@ -75,11 +83,41 @@ const MyPageStack = () => {
         }}
       />
       <Stack.Screen
+        name="CafeDetail"
+        component={CafeDetailScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="CollectionDetail"
+        component={CollectionDetailScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="CategoryDetail"
+        component={CategoryDetailScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
         name="Settings"
         component={SettingsScreen}
         options={{
           headerShown: false, // SettingsScreen has its own header
         }}
+      />
+      <Stack.Screen
+        name="ProfileEdit"
+        component={ProfileEditScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="PrivacySecurity"
+        component={PrivacySecurityScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="Support"
+        component={SupportScreen}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );
@@ -101,6 +139,8 @@ const MainTabs = () => {
             iconName = 'add-circle'; // Always filled for highlighted effect
           } else if (route.name === 'Explore') {
             iconName = focused ? 'compass' : 'compass-outline';
+          } else if (route.name === 'Community') {
+            iconName = focused ? 'people' : 'people-outline';
           } else if (route.name === 'MyPage') {
             iconName = focused ? 'person' : 'person-outline';
           }
@@ -201,6 +241,14 @@ const MainTabs = () => {
         }}
       />
       <Tab.Screen
+        name="Community"
+        component={CommunityScreen}
+        options={{
+          tabBarLabel: '커뮤니티',
+          headerShown: false,
+        }}
+      />
+      <Tab.Screen
         name="MyPage"
         component={MyPageStack}
         options={{
@@ -245,20 +293,117 @@ const AppNavigator = () => {
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!hasSeenOnboarding ? (
-          // First-time user - Show Onboarding
           <>
             <Stack.Screen name="Onboarding" component={OnboardingScreen} />
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="MainTabs" component={MainTabs} />
+            <Stack.Screen
+              name="CafeDetail"
+              component={CafeDetailScreen}
+              options={{
+                headerShown: true,
+                headerTitle: '카페 상세',
+                headerBackTitle: '뒤로',
+                headerStyle: { backgroundColor: Colors.background },
+                headerTintColor: Colors.brand,
+                headerTitleStyle: { fontWeight: 'bold' },
+              }}
+            />
+            <Stack.Screen
+              name="CollectionDetail"
+              component={CollectionDetailScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="CategoryDetail"
+              component={CategoryDetailScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="PostDetail"
+              component={PostDetailScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="WritePost"
+              component={WritePostScreen}
+              options={{ headerShown: false }}
+            />
           </>
         ) : user ? (
           // Returning authenticated user - Main Tabs
-          <Stack.Screen name="MainTabs" component={MainTabs} />
+          <>
+            <Stack.Screen name="MainTabs" component={MainTabs} />
+            <Stack.Screen
+              name="CafeDetail"
+              component={CafeDetailScreen}
+              options={{
+                headerShown: true,
+                headerTitle: '카페 상세',
+                headerBackTitle: '뒤로',
+                headerStyle: { backgroundColor: Colors.background },
+                headerTintColor: Colors.brand,
+                headerTitleStyle: { fontWeight: 'bold' },
+              }}
+            />
+            <Stack.Screen
+              name="CollectionDetail"
+              component={CollectionDetailScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="CategoryDetail"
+              component={CategoryDetailScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="PostDetail"
+              component={PostDetailScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="WritePost"
+              component={WritePostScreen}
+              options={{ headerShown: false }}
+            />
+          </>
         ) : (
           // Returning unauthenticated user - Login
           <>
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="MainTabs" component={MainTabs} />
+            <Stack.Screen
+              name="CafeDetail"
+              component={CafeDetailScreen}
+              options={{
+                headerShown: true,
+                headerTitle: '카페 상세',
+                headerBackTitle: '뒤로',
+                headerStyle: { backgroundColor: Colors.background },
+                headerTintColor: Colors.brand,
+                headerTitleStyle: { fontWeight: 'bold' },
+              }}
+            />
+            <Stack.Screen
+              name="CollectionDetail"
+              component={CollectionDetailScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="CategoryDetail"
+              component={CategoryDetailScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="PostDetail"
+              component={PostDetailScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="WritePost"
+              component={WritePostScreen}
+              options={{ headerShown: false }}
+            />
           </>
         )}
       </Stack.Navigator>
