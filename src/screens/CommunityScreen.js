@@ -9,13 +9,16 @@ import {
     SafeAreaView,
     StatusBar,
     Platform,
+    Alert,
+    ActionSheetIOS,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { useFocusEffect } from '@react-navigation/native';
-import { getPosts } from '../services/communityService';
+import { getPosts, toggleLike, toggleBookmark, sharePost, deletePost } from '../services/communityService';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { auth } from '../services/firebase';
 
 const Colors = {
     background: '#FAFAF9', // stone-50
@@ -52,6 +55,179 @@ const CommunityScreen = ({ navigation }) => {
             console.error('Error loading posts:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleLike = async (postId) => {
+        try {
+            const result = await toggleLike(postId);
+            // Update local state
+            setPosts(prevPosts =>
+                prevPosts.map(post =>
+                    post.id === postId
+                        ? { ...post, isLiked: result.isLiked, likes: result.likes }
+                        : post
+                )
+            );
+        } catch (error) {
+            console.error('Error toggling like:', error);
+        }
+    };
+
+    const handleBookmark = async (postId) => {
+        try {
+            const isBookmarked = await toggleBookmark(postId);
+            // Update local state
+            setPosts(prevPosts =>
+                prevPosts.map(post =>
+                    post.id === postId
+                        ? { ...post, isBookmarked }
+                        : post
+                )
+            );
+        } catch (error) {
+            console.error('Error toggling bookmark:', error);
+        }
+    };
+
+    const handleShare = async (post) => {
+        try {
+            await sharePost(post);
+        } catch (error) {
+            console.error('Error sharing post:', error);
+        }
+    };
+
+    const handleEditPost = (post) => {
+        // Navigate to WritePost screen with post data for editing
+        navigation.navigate('WritePost', {
+            editMode: true,
+            post: post
+        });
+    };
+
+    const handleDeletePost = async (postId) => {
+        try {
+            await deletePost(postId);
+            // Remove post from local state
+            setPosts(prevPosts => prevPosts.filter(p => p.id !== postId));
+            Alert.alert('성공', '게시글이 삭제되었습니다.');
+        } catch (error) {
+            console.error('Error deleting post:', error);
+            Alert.alert('오류', error.message || '게시글 삭제에 실패했습니다.');
+        }
+    };
+
+    const handlePostMenu = (post, event) => {
+        // Prevent navigation to post detail
+        event?.stopPropagation();
+
+        const currentUser = auth.currentUser;
+        const isAuthor = currentUser && post.userId === currentUser.uid;
+
+        // Different options for author vs non-author
+        const options = isAuthor
+            ? ['게시글 수정', '게시글 삭제', '링크 복사', '취소']
+            : ['링크 복사', '신고하기', '취소'];
+
+        const destructiveButtonIndex = isAuthor ? 1 : 1;
+        const cancelButtonIndex = isAuthor ? 3 : 2;
+
+        if (Platform.OS === 'ios') {
+            ActionSheetIOS.showActionSheetWithOptions(
+                {
+                    options,
+                    destructiveButtonIndex,
+                    cancelButtonIndex,
+                },
+                (buttonIndex) => {
+                    if (isAuthor) {
+                        if (buttonIndex === 0) {
+                            // Edit post
+                            handleEditPost(post);
+                        } else if (buttonIndex === 1) {
+                            // Delete post
+                            Alert.alert(
+                                '게시글 삭제',
+                                '정말로 이 게시글을 삭제하시겠습니까?',
+                                [
+                                    { text: '취소', style: 'cancel' },
+                                    {
+                                        text: '삭제',
+                                        style: 'destructive',
+                                        onPress: () => handleDeletePost(post.id)
+                                    }
+                                ]
+                            );
+                        } else if (buttonIndex === 2) {
+                            // Copy link
+                            Alert.alert('성공', '링크가 복사되었습니다.');
+                        }
+                    } else {
+                        if (buttonIndex === 0) {
+                            // Copy link
+                            Alert.alert('성공', '링크가 복사되었습니다.');
+                        } else if (buttonIndex === 1) {
+                            // Report
+                            Alert.alert('알림', '신고 기능은 준비중입니다.');
+                        }
+                    }
+                }
+            );
+        } else {
+            // Android - use Alert.alert with buttons
+            if (isAuthor) {
+                Alert.alert(
+                    '게시글 관리',
+                    '작업을 선택하세요',
+                    [
+                        {
+                            text: '게시글 수정',
+                            onPress: () => handleEditPost(post)
+                        },
+                        {
+                            text: '게시글 삭제',
+                            style: 'destructive',
+                            onPress: () => {
+                                Alert.alert(
+                                    '게시글 삭제',
+                                    '정말로 이 게시글을 삭제하시겠습니까?',
+                                    [
+                                        { text: '취소', style: 'cancel' },
+                                        {
+                                            text: '삭제',
+                                            style: 'destructive',
+                                            onPress: () => handleDeletePost(post.id)
+                                        }
+                                    ]
+                                );
+                            }
+                        },
+                        {
+                            text: '링크 복사',
+                            onPress: () => Alert.alert('성공', '링크가 복사되었습니다.')
+                        },
+                        { text: '취소', style: 'cancel' }
+                    ]
+                );
+            } else {
+                Alert.alert(
+                    '게시글 관리',
+                    '작업을 선택하세요',
+                    [
+                        {
+                            text: '링크 복사',
+                            onPress: () => Alert.alert('성공', '링크가 복사되었습니다.')
+                        },
+                        {
+                            text: '신고하기',
+                            style: 'destructive',
+                            onPress: () => Alert.alert('알림', '신고 기능은 준비중입니다.')
+                        },
+                        { text: '취소', style: 'cancel' }
+                    ]
+                );
+            }
         }
     };
 
@@ -107,7 +283,7 @@ const CommunityScreen = ({ navigation }) => {
                             </View>
                         </View>
                     </View>
-                    <TouchableOpacity>
+                    <TouchableOpacity onPress={(e) => handlePostMenu(post, e)}>
                         <Ionicons name="ellipsis-horizontal" size={20} color={Colors.textSecondary} />
                     </TouchableOpacity>
                 </View>
@@ -130,10 +306,14 @@ const CommunityScreen = ({ navigation }) => {
 
                 <View style={styles.cardFooter}>
                     <View style={styles.statsContainer}>
-                        <View style={styles.statItem}>
+                        <TouchableOpacity
+                            style={styles.statItem}
+                            onPress={() => handleLike(post.id)}
+                            activeOpacity={0.7}
+                        >
                             <Ionicons name={post.isLiked ? "thumbs-up" : "thumbs-up-outline"} size={16} color={post.isLiked ? Colors.brand : Colors.textSecondary} />
                             <Text style={[styles.statText, post.isLiked && { color: Colors.brand }]}>{post.likes}</Text>
-                        </View>
+                        </TouchableOpacity>
                         <View style={styles.statItem}>
                             <Ionicons name="chatbubble-outline" size={16} color={Colors.textSecondary} />
                             <Text style={styles.statText}>{post.comments}</Text>
@@ -144,10 +324,18 @@ const CommunityScreen = ({ navigation }) => {
                         </View>
                     </View>
                     <View style={styles.actionContainer}>
-                        <TouchableOpacity style={styles.iconButton}>
+                        <TouchableOpacity
+                            style={styles.iconButton}
+                            onPress={() => handleBookmark(post.id)}
+                            activeOpacity={0.7}
+                        >
                             <Ionicons name={post.isBookmarked ? "bookmark" : "bookmark-outline"} size={20} color={post.isBookmarked ? Colors.brand : Colors.textSecondary} />
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.iconButton}>
+                        <TouchableOpacity
+                            style={styles.iconButton}
+                            onPress={() => handleShare(post)}
+                            activeOpacity={0.7}
+                        >
                             <Ionicons name="share-social-outline" size={20} color={Colors.textSecondary} />
                         </TouchableOpacity>
                     </View>
