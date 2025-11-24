@@ -16,7 +16,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '../constants/colors';
 import Typography from '../constants/typography';
-import FlavorProfile from './FlavorProfile';
+import FlavorRadar from './FlavorRadar';
 import Tag from './Tag';
 
 const { width } = Dimensions.get('window');
@@ -241,9 +241,20 @@ const CoffeeCard = ({ post, onPress, index = 0 }) => {
             {post.description}
           </Text>
 
-          {/* Flavor Profile */}
+          {/* Flavor Profile - Updated to use FlavorRadar */}
           <View style={styles.flavorContainer}>
-            <FlavorProfile flavorProfile={post.flavorProfile} />
+            <View style={styles.radarContainer}>
+              <FlavorRadar
+                data={[
+                  { subject: '산미', A: post.flavorProfile.acidity, fullMark: 5 },
+                  { subject: '단맛', A: post.flavorProfile.sweetness, fullMark: 5 },
+                  { subject: '바디', A: post.flavorProfile.body, fullMark: 5 },
+                  { subject: '쓴맛', A: post.flavorProfile.bitterness, fullMark: 5 },
+                  { subject: '향', A: post.flavorProfile.aroma, fullMark: 5 },
+                ]}
+                size={140}
+              />
+            </View>
           </View>
 
           {/* Tags */}
@@ -410,6 +421,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     marginBottom: 16,
+    alignItems: 'center', // Center the radar chart
+  },
+  radarContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
   },
   tagsContainer: {
     flexDirection: 'row',

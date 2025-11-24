@@ -23,7 +23,7 @@ import Tag from '../components/Tag';
 import CustomButton from '../components/CustomButton';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Slider from '../components/Slider';
-import FlavorProfile from '../components/FlavorProfile';
+import FlavorRadar from '../components/FlavorRadar';
 import { useAuth } from '../contexts/AuthContext';
 import { createReview, updateReview } from '../services/reviewService';
 import { getAllCafes } from '../services/cafeService';
@@ -58,7 +58,10 @@ const WriteReviewScreen = ({ navigation, route }) => {
   // F-2.3: Advanced Mode State
   const [showAdvancedMode, setShowAdvancedMode] = useState(false);
   const [acidity, setAcidity] = useState(3);
+  const [sweetness, setSweetness] = useState(3);
   const [body, setBody] = useState(3);
+  const [bitterness, setBitterness] = useState(3);
+  const [aroma, setAroma] = useState(3);
   const [selectedAdvancedTags, setSelectedAdvancedTags] = useState([]);
   const [roasting, setRoasting] = useState(null);
 
@@ -94,7 +97,10 @@ const WriteReviewScreen = ({ navigation, route }) => {
       if (review.acidity || review.body || review.advancedTags || review.roasting) {
         setShowAdvancedMode(true);
         setAcidity(review.acidity || 3);
+        setSweetness(review.sweetness || 3);
         setBody(review.body || 3);
+        setBitterness(review.bitterness || 3);
+        setAroma(review.aroma || 3);
         setSelectedAdvancedTags(review.advancedTags || []);
         setRoasting(review.roasting || null);
       }
@@ -253,7 +259,10 @@ const WriteReviewScreen = ({ navigation, route }) => {
       // Add advanced mode fields if enabled
       if (showAdvancedMode) {
         reviewData.acidity = acidity;
+        reviewData.sweetness = sweetness;
         reviewData.body = body;
+        reviewData.bitterness = bitterness;
+        reviewData.aroma = aroma;
         reviewData.advancedTags = selectedAdvancedTags.length > 0 ? selectedAdvancedTags : null;
         reviewData.roasting = roasting;
       }
@@ -271,10 +280,12 @@ const WriteReviewScreen = ({ navigation, route }) => {
             '사진 업로드에 실패했습니다. 사진 없이 리뷰를 작성하시겠습니까?',
             [
               { text: '취소', style: 'cancel', onPress: () => setSubmitting(false) },
-              { text: '계속', onPress: async () => {
-                // Continue without photos
-                reviewData.photoUrls = [];
-              }}
+              {
+                text: '계속', onPress: async () => {
+                  // Continue without photos
+                  reviewData.photoUrls = [];
+                }
+              }
             ]
           );
           return; // Wait for user decision
@@ -355,7 +366,10 @@ const WriteReviewScreen = ({ navigation, route }) => {
     setCoffeeName('');
     setShowAdvancedMode(false);
     setAcidity(3);
+    setSweetness(3);
     setBody(3);
+    setBitterness(3);
+    setAroma(3);
     setSelectedAdvancedTags([]);
     setRoasting(null);
     setSelectedPhotos([]); // v0.2: F-PHOTO
@@ -559,15 +573,18 @@ const WriteReviewScreen = ({ navigation, route }) => {
 
             {/* Flavor Profile Visualization */}
             <View style={styles.flavorVisualizationContainer}>
-              <FlavorProfile
-                flavorProfile={{
-                  acidity: acidity,
-                  sweetness: 3, // Default/placeholder - could be made adjustable in future
-                  body: body,
-                  bitterness: 3, // Default/placeholder
-                  aroma: 3, // Default/placeholder
-                }}
-              />
+              <View style={{ alignItems: 'center', paddingVertical: 10 }}>
+                <FlavorRadar
+                  data={[
+                    { subject: '산미', A: acidity, fullMark: 5 },
+                    { subject: '단맛', A: sweetness, fullMark: 5 },
+                    { subject: '바디', A: body, fullMark: 5 },
+                    { subject: '쓴맛', A: bitterness, fullMark: 5 },
+                    { subject: '향', A: aroma, fullMark: 5 },
+                  ]}
+                  size={200}
+                />
+              </View>
             </View>
 
             {/* Acidity Slider */}
@@ -576,6 +593,20 @@ const WriteReviewScreen = ({ navigation, route }) => {
                 label="산미 (선택)"
                 value={acidity}
                 onValueChange={setAcidity}
+                minimumValue={1}
+                maximumValue={5}
+                step={1}
+                minLabel="낮음"
+                maxLabel="높음"
+              />
+            </View>
+
+            {/* Sweetness Slider */}
+            <View style={styles.sliderSection}>
+              <Slider
+                label="단맛 (선택)"
+                value={sweetness}
+                onValueChange={setSweetness}
                 minimumValue={1}
                 maximumValue={5}
                 step={1}
@@ -595,6 +626,34 @@ const WriteReviewScreen = ({ navigation, route }) => {
                 step={1}
                 minLabel="가벼움"
                 maxLabel="묵직함"
+              />
+            </View>
+
+            {/* Bitterness Slider */}
+            <View style={styles.sliderSection}>
+              <Slider
+                label="쓴맛 (선택)"
+                value={bitterness}
+                onValueChange={setBitterness}
+                minimumValue={1}
+                maximumValue={5}
+                step={1}
+                minLabel="낮음"
+                maxLabel="높음"
+              />
+            </View>
+
+            {/* Aroma Slider */}
+            <View style={styles.sliderSection}>
+              <Slider
+                label="향 (선택)"
+                value={aroma}
+                onValueChange={setAroma}
+                minimumValue={1}
+                maximumValue={5}
+                step={1}
+                minLabel="약함"
+                maxLabel="강함"
               />
             </View>
 

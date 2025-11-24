@@ -13,98 +13,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
-// Mock Data
-const MOCK_POSTS = [
-    {
-        id: '1',
-        type: 'question',
-        title: '에스프레소 추출 시간이 너무 빠른데 원인이 뭘까요?',
-        content: '새로 산 그라인더로 추출하는데 18초만에 2온스가 나와버려요. 분쇄도를 더 곱게 해야 할까요? 아니면 다른 문제일까요?',
-        author: {
-            name: '커피초보',
-            avatar: 'https://i.pravatar.cc/150?u=user1',
-            level: 'Starter',
-        },
-        tags: ['에스프레소', '추출', '그라인더'],
-        likes: 23,
-        comments: 15,
-        views: 342,
-        timeAgo: '30분 전',
-        category: '추출 기술',
-        isSolved: false,
-    },
-    {
-        id: '2',
-        type: 'tip',
-        title: '홈카페에서 라떼아트 연습하는 5가지 팁',
-        content: '1년간 연습한 결과 깨달은 것들을 정리해봤어요. 우유 스티밍 온도, 각도, 푸어링 타이밍 등 실전 팁들입니다.',
-        author: {
-            name: '라떼마스터',
-            avatar: 'https://i.pravatar.cc/150?u=user2',
-            level: 'Expert',
-        },
-        tags: ['라떼아트', '홈카페', '우유스티밍'],
-        likes: 156,
-        comments: 34,
-        views: 1289,
-        timeAgo: '2시간 전',
-        category: '팁&노하우',
-        isBookmarked: true,
-    },
-    {
-        id: '3',
-        type: 'discussion',
-        title: '에티오피아 vs 콜롬비아, 산미 좋아하면 어디 원두가 더 좋을까요?',
-        content: '산미를 선호하는데 에티오피아 예가체프와 콜롬비아 수프리모 중에 고민됩니다. 둘 다 마셔보신 분들 의견이 궁금해요!',
-        author: {
-            name: '원두탐험가',
-            avatar: 'https://i.pravatar.cc/150?u=user3',
-            level: 'Pro',
-        },
-        tags: ['원두', '산미', '에티오피아', '콜롬비아'],
-        likes: 45,
-        comments: 28,
-        views: 567,
-        timeAgo: '4시간 전',
-        category: '원두&로스팅',
-        isLiked: true,
-    },
-    {
-        id: '4',
-        type: 'question',
-        title: '핸드드립 온도는 몇도가 가장 적당한가요?',
-        content: '보통 92-96도 사이라고 하던데, 원두에 따라 다른가요? 요즘 케냐 원두 사용 중인데 너무 뜨거운 물로 하면 쓴맛이 나는 것 같아요.',
-        author: {
-            name: '드립러버',
-            avatar: 'https://i.pravatar.cc/150?u=user4',
-            level: 'Barista',
-        },
-        tags: ['핸드드립', '온도', '추출'],
-        likes: 67,
-        comments: 42,
-        views: 892,
-        timeAgo: '6시간 전',
-        category: '추출 기술',
-        isSolved: true,
-    },
-    {
-        id: '5',
-        type: 'tip',
-        title: '카페에서 일하며 배운 우유 거품 만드는 비법',
-        content: '바리스타로 일한 지 3년차인데, 처음 배울 때 몰랐던 것들을 공유합니다. 특히 우유 온도 체크하는 팁이 유용할 거예요.',
-        author: {
-            name: '바리스타김',
-            avatar: 'https://i.pravatar.cc/150?u=user5',
-            level: 'Expert',
-        },
-        tags: ['바리스타', '우유거품', '카페'],
-        likes: 189,
-        comments: 56,
-        views: 2134,
-        timeAgo: '1일 전',
-        category: '팁&노하우',
-    },
-];
+import { useFocusEffect } from '@react-navigation/native';
+import { getPosts } from '../services/communityService';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const Colors = {
     background: '#FAFAF9', // stone-50
@@ -123,13 +34,33 @@ const Colors = {
 
 const CommunityScreen = ({ navigation }) => {
     const [activeTab, setActiveTab] = useState('all');
+    const [posts, setPosts] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useFocusEffect(
+        React.useCallback(() => {
+            loadPosts();
+        }, [])
+    );
+
+    const loadPosts = async () => {
+        try {
+            setLoading(true);
+            const data = await getPosts();
+            setPosts(data);
+        } catch (error) {
+            console.error('Error loading posts:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const filterPosts = (posts) => {
         if (activeTab === 'all') return posts;
         return posts.filter(post => post.type === activeTab);
     };
 
-    const filteredPosts = filterPosts(MOCK_POSTS);
+    const filteredPosts = filterPosts(posts);
 
     const getTypeConfig = (type) => {
         switch (type) {
@@ -247,15 +178,24 @@ const CommunityScreen = ({ navigation }) => {
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
                 {/* Quick Actions */}
                 <View style={styles.quickActions}>
-                    <TouchableOpacity style={[styles.actionButton, { backgroundColor: Colors.purpleLight, borderColor: Colors.purpleLight }]}>
+                    <TouchableOpacity
+                        style={[styles.actionButton, { backgroundColor: Colors.purpleLight, borderColor: Colors.purpleLight }]}
+                        onPress={() => navigation.navigate('WritePost', { initialCategory: 'question' })}
+                    >
                         <Ionicons name="help-circle-outline" size={24} color={Colors.purple} />
                         <Text style={[styles.actionText, { color: Colors.purple }]}>질문하기</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.actionButton, { backgroundColor: Colors.brandLight, borderColor: Colors.brandLight }]}>
+                    <TouchableOpacity
+                        style={[styles.actionButton, { backgroundColor: Colors.brandLight, borderColor: Colors.brandLight }]}
+                        onPress={() => navigation.navigate('WritePost', { initialCategory: 'tip' })}
+                    >
                         <Ionicons name="bulb-outline" size={24} color={Colors.brand} />
                         <Text style={[styles.actionText, { color: Colors.brand }]}>팁 공유</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.actionButton, { backgroundColor: Colors.blueLight, borderColor: Colors.blueLight }]}>
+                    <TouchableOpacity
+                        style={[styles.actionButton, { backgroundColor: Colors.blueLight, borderColor: Colors.blueLight }]}
+                        onPress={() => navigation.navigate('WritePost', { initialCategory: 'discussion' })}
+                    >
                         <Ionicons name="chatbubbles-outline" size={24} color={Colors.blue} />
                         <Text style={[styles.actionText, { color: Colors.blue }]}>토론하기</Text>
                     </TouchableOpacity>

@@ -9,3 +9,4 @@ export { default as EmptyState } from './EmptyState';
 export { default as NaverMapView } from './NaverMapView';
 export { default as CoffeeCard } from './CoffeeCard';
 export { default as FlavorProfile } from './FlavorProfile';
+export { default as FlavorRadar } from './FlavorRadar';

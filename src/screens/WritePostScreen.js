@@ -12,6 +12,8 @@ import {
     Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { createPost } from '../services/communityService';
+import { useAuth } from '../contexts/AuthContext';
 
 const Colors = {
     background: '#FAFAF9',
@@ -32,22 +34,52 @@ const CATEGORIES = [
     { id: 'tip', label: '팁', color: Colors.brand },
 ];
 
-const WritePostScreen = ({ navigation }) => {
+const WritePostScreen = ({ navigation, route }) => {
+    const { initialCategory } = route.params || {};
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
-    const [selectedCategory, setSelectedCategory] = useState('discussion');
+    const [selectedCategory, setSelectedCategory] = useState(initialCategory || 'discussion');
     const [tags, setTags] = useState('');
+    const { user } = useAuth();
+    const [submitting, setSubmitting] = useState(false);
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         if (!title.trim() || !content.trim()) {
             Alert.alert('알림', '제목과 내용을 입력해주세요.');
             return;
         }
 
-        // Here you would typically make an API call to save the post
-        Alert.alert('성공', '게시글이 등록되었습니다.', [
-            { text: '확인', onPress: () => navigation.goBack() }
-        ]);
+        try {
+            setSubmitting(true);
+
+            // Map category ID to display label
+            const categoryLabel = CATEGORIES.find(c => c.id === selectedCategory)?.label || '일반';
+
+            const postData = {
+                type: selectedCategory,
+                title: title.trim(),
+                content: content.trim(),
+                category: categoryLabel,
+                tags: tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0),
+                author: {
+                    name: user?.displayName || '익명 사용자',
+                    avatar: user?.photoURL || 'https://i.pravatar.cc/150?u=default',
+                    level: 'Barista', // Default level
+                },
+                createdAt: new Date().toISOString(),
+            };
+
+            await createPost(postData);
+
+            Alert.alert('성공', '게시글이 등록되었습니다.', [
+                { text: '확인', onPress: () => navigation.goBack() }
+            ]);
+        } catch (error) {
+            console.error('Error creating post:', error);
+            Alert.alert('오류', '게시글 등록 중 오류가 발생했습니다.');
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     return (
@@ -57,8 +89,14 @@ const WritePostScreen = ({ navigation }) => {
                     <Ionicons name="close" size={24} color={Colors.text} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>글쓰기</Text>
-                <TouchableOpacity onPress={handleSubmit} style={styles.submitButton}>
-                    <Text style={styles.submitButtonText}>등록</Text>
+                <TouchableOpacity
+                    onPress={handleSubmit}
+                    style={[styles.submitButton, submitting && { opacity: 0.7 }]}
+                    disabled={submitting}
+                >
+                    <Text style={styles.submitButtonText}>
+                        {submitting ? '등록 중...' : '등록'}
+                    </Text>
                 </TouchableOpacity>
             </View>
 
