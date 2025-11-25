@@ -19,6 +19,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { getPosts, toggleLike, toggleBookmark, sharePost, deletePost } from '../services/communityService';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { auth } from '../services/firebase';
+import { useTheme } from '../contexts';
 
 const Colors = {
     background: '#FAFAF9', // stone-50
@@ -36,6 +37,7 @@ const Colors = {
 };
 
 const CommunityScreen = ({ navigation }) => {
+    const { colors } = useTheme();
     const [activeTab, setActiveTab] = useState('all');
     const [posts, setPosts] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -257,17 +259,17 @@ const CommunityScreen = ({ navigation }) => {
         return (
             <TouchableOpacity
                 key={post.id}
-                style={styles.card}
+                style={[styles.card, { backgroundColor: colors.backgroundWhite, borderColor: colors.border }]}
                 onPress={() => navigation.navigate('PostDetail', { post })}
             >
                 <View style={styles.cardHeader}>
                     <View style={styles.authorContainer}>
-                        <Image source={{ uri: post.author.avatar }} style={styles.avatar} />
+                        <Image source={{ uri: post.author.avatar }} style={[styles.avatar, { backgroundColor: colors.stone100 }]} />
                         <View>
                             <View style={styles.authorRow}>
-                                <Text style={styles.authorName}>{post.author.name}</Text>
-                                <View style={styles.badge}>
-                                    <Text style={styles.badgeText}>{post.author.level}</Text>
+                                <Text style={[styles.authorName, { color: colors.textPrimary }]}>{post.author.name}</Text>
+                                <View style={[styles.badge, { backgroundColor: colors.stone100 }]}>
+                                    <Text style={[styles.badgeText, { color: colors.textSecondary }]}>{post.author.level}</Text>
                                 </View>
                                 {post.isSolved && (
                                     <View style={styles.solvedBadge}>
@@ -277,50 +279,50 @@ const CommunityScreen = ({ navigation }) => {
                                 )}
                             </View>
                             <View style={styles.metaRow}>
-                                <Text style={styles.metaText}>{post.timeAgo}</Text>
-                                <Text style={styles.metaDot}>·</Text>
-                                <Text style={styles.metaText}>{post.category}</Text>
+                                <Text style={[styles.metaText, { color: colors.textTertiary }]}>{post.timeAgo}</Text>
+                                <Text style={[styles.metaDot, { color: colors.textTertiary }]}>·</Text>
+                                <Text style={[styles.metaText, { color: colors.textTertiary }]}>{post.category}</Text>
                             </View>
                         </View>
                     </View>
                     <TouchableOpacity onPress={(e) => handlePostMenu(post, e)}>
-                        <Ionicons name="ellipsis-horizontal" size={20} color={Colors.textSecondary} />
+                        <Ionicons name="ellipsis-horizontal" size={20} color={colors.textTertiary} />
                     </TouchableOpacity>
                 </View>
 
                 <View style={styles.cardContent}>
                     <View style={styles.titleRow}>
                         <Ionicons name={config.icon} size={16} color={config.color} style={styles.typeIcon} />
-                        <Text style={styles.postTitle} numberOfLines={2}>{post.title}</Text>
+                        <Text style={[styles.postTitle, { color: colors.textPrimary }]} numberOfLines={2}>{post.title}</Text>
                     </View>
-                    <Text style={styles.postBody} numberOfLines={2}>{post.content}</Text>
+                    <Text style={[styles.postBody, { color: colors.textSecondary }]} numberOfLines={2}>{post.content}</Text>
                 </View>
 
                 <View style={styles.tagContainer}>
                     {post.tags.map((tag, index) => (
-                        <View key={index} style={styles.tag}>
-                            <Text style={styles.tagText}>#{tag}</Text>
+                        <View key={index} style={[styles.tag, { backgroundColor: colors.stone100, borderColor: colors.border }]}>
+                            <Text style={[styles.tagText, { color: colors.textSecondary }]}>#{tag}</Text>
                         </View>
                     ))}
                 </View>
 
-                <View style={styles.cardFooter}>
+                <View style={[styles.cardFooter, { borderTopColor: colors.border }]}>
                     <View style={styles.statsContainer}>
                         <TouchableOpacity
                             style={styles.statItem}
                             onPress={() => handleLike(post.id)}
                             activeOpacity={0.7}
                         >
-                            <Ionicons name={post.isLiked ? "thumbs-up" : "thumbs-up-outline"} size={16} color={post.isLiked ? Colors.brand : Colors.textSecondary} />
-                            <Text style={[styles.statText, post.isLiked && { color: Colors.brand }]}>{post.likes}</Text>
+                            <Ionicons name={post.isLiked ? "thumbs-up" : "thumbs-up-outline"} size={16} color={post.isLiked ? Colors.brand : colors.textTertiary} />
+                            <Text style={[styles.statText, { color: colors.textTertiary }, post.isLiked && { color: Colors.brand }]}>{post.likes}</Text>
                         </TouchableOpacity>
                         <View style={styles.statItem}>
-                            <Ionicons name="chatbubble-outline" size={16} color={Colors.textSecondary} />
-                            <Text style={styles.statText}>{post.comments}</Text>
+                            <Ionicons name="chatbubble-outline" size={16} color={colors.textTertiary} />
+                            <Text style={[styles.statText, { color: colors.textTertiary }]}>{post.comments}</Text>
                         </View>
                         <View style={styles.statItem}>
-                            <Ionicons name="eye-outline" size={16} color={Colors.textSecondary} />
-                            <Text style={styles.statText}>{post.views}</Text>
+                            <Ionicons name="eye-outline" size={16} color={colors.textTertiary} />
+                            <Text style={[styles.statText, { color: colors.textTertiary }]}>{post.views}</Text>
                         </View>
                     </View>
                     <View style={styles.actionContainer}>
@@ -329,14 +331,14 @@ const CommunityScreen = ({ navigation }) => {
                             onPress={() => handleBookmark(post.id)}
                             activeOpacity={0.7}
                         >
-                            <Ionicons name={post.isBookmarked ? "bookmark" : "bookmark-outline"} size={20} color={post.isBookmarked ? Colors.brand : Colors.textSecondary} />
+                            <Ionicons name={post.isBookmarked ? "bookmark" : "bookmark-outline"} size={20} color={post.isBookmarked ? Colors.brand : colors.textTertiary} />
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={styles.iconButton}
                             onPress={() => handleShare(post)}
                             activeOpacity={0.7}
                         >
-                            <Ionicons name="share-social-outline" size={20} color={Colors.textSecondary} />
+                            <Ionicons name="share-social-outline" size={20} color={colors.textTertiary} />
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -345,14 +347,14 @@ const CommunityScreen = ({ navigation }) => {
     };
 
     return (
-        <SafeAreaView style={styles.container}>
-            <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
+        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+            <StatusBar barStyle={colors.isDark ? "light-content" : "dark-content"} backgroundColor={colors.background} />
 
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { backgroundColor: colors.backgroundWhite, borderBottomColor: colors.border }]}>
                 <View>
-                    <Text style={styles.headerTitle}>커뮤니티</Text>
-                    <Text style={styles.headerSubtitle}>커피 애호가들과 지식을 나눠보세요</Text>
+                    <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>커뮤니티</Text>
+                    <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>커피 애호가들과 지식을 나눠보세요</Text>
                 </View>
                 <TouchableOpacity
                     style={styles.writeButton}
@@ -367,21 +369,21 @@ const CommunityScreen = ({ navigation }) => {
                 {/* Quick Actions */}
                 <View style={styles.quickActions}>
                     <TouchableOpacity
-                        style={[styles.actionButton, { backgroundColor: Colors.purpleLight, borderColor: Colors.purpleLight }]}
+                        style={[styles.actionButton, { backgroundColor: colors.isDark ? '#3B0764' : Colors.purpleLight, borderColor: colors.isDark ? '#581C87' : Colors.purpleLight }]}
                         onPress={() => navigation.navigate('WritePost', { initialCategory: 'question' })}
                     >
                         <Ionicons name="help-circle-outline" size={24} color={Colors.purple} />
                         <Text style={[styles.actionText, { color: Colors.purple }]}>질문하기</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                        style={[styles.actionButton, { backgroundColor: Colors.brandLight, borderColor: Colors.brandLight }]}
+                        style={[styles.actionButton, { backgroundColor: colors.isDark ? '#451A03' : Colors.brandLight, borderColor: colors.isDark ? '#78350F' : Colors.brandLight }]}
                         onPress={() => navigation.navigate('WritePost', { initialCategory: 'tip' })}
                     >
                         <Ionicons name="bulb-outline" size={24} color={Colors.brand} />
                         <Text style={[styles.actionText, { color: Colors.brand }]}>팁 공유</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                        style={[styles.actionButton, { backgroundColor: Colors.blueLight, borderColor: Colors.blueLight }]}
+                        style={[styles.actionButton, { backgroundColor: colors.isDark ? '#172554' : Colors.blueLight, borderColor: colors.isDark ? '#1E3A8A' : Colors.blueLight }]}
                         onPress={() => navigation.navigate('WritePost', { initialCategory: 'discussion' })}
                     >
                         <Ionicons name="chatbubbles-outline" size={24} color={Colors.blue} />
@@ -401,10 +403,14 @@ const CommunityScreen = ({ navigation }) => {
                         return (
                             <TouchableOpacity
                                 key={tab}
-                                style={[styles.tab, isActive && styles.activeTab]}
+                                style={[
+                                    styles.tab,
+                                    { backgroundColor: colors.backgroundWhite, borderColor: colors.border },
+                                    isActive && [styles.activeTab, { backgroundColor: colors.textPrimary, borderColor: colors.textPrimary }]
+                                ]}
                                 onPress={() => setActiveTab(tab)}
                             >
-                                <Text style={[styles.tabText, isActive && styles.activeTabText]}>{label}</Text>
+                                <Text style={[styles.tabText, { color: colors.textSecondary }, isActive && [styles.activeTabText, { color: colors.backgroundWhite }]]}>{label}</Text>
                             </TouchableOpacity>
                         );
                     })}

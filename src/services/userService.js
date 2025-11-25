@@ -1,7 +1,7 @@
 // User Service - Firestore 유저 데이터 관리
 // 문서 참조: The Foundation - Firestore 스키마
 
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebase';
 
 /**
@@ -69,6 +69,20 @@ export const updateUser = async (uid, userData) => {
     await updateDoc(userRef, userData);
   } catch (error) {
     console.error('Error updating user:', error);
+    throw error;
+  }
+};
+/**
+ * 유저 삭제 (회원 탈퇴)
+ * @param {string} uid - Firebase Auth UID
+ * @returns {Promise<void>}
+ */
+export const deleteUser = async (uid) => {
+  try {
+    const userRef = doc(db, 'users', uid);
+    await deleteDoc(userRef);
+  } catch (error) {
+    console.error('Error deleting user:', error);
     throw error;
   }
 };

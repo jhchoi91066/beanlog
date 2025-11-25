@@ -17,24 +17,28 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Colors from '../constants/colors';
 import Typography from '../constants/typography';
+import { useTheme } from '../contexts';
 
 const { width } = Dimensions.get('window');
 
 // Mock Data
 const TRENDING_CAFES = [
   {
+    id: "mock-1",
     name: "테라로사",
     location: "강릉",
     image: "https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=400",
     trend: "+24%",
   },
   {
+    id: "mock-2",
     name: "모모스커피",
     location: "부산",
     image: "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=400",
     trend: "+18%",
   },
   {
+    id: "mock-3",
     name: "프릳츠",
     location: "서울",
     image: "https://images.unsplash.com/photo-1521017432531-fbd92d768814?w=400",
@@ -81,6 +85,7 @@ const CATEGORIES = [
 ];
 
 const ExploreScreen = ({ navigation }) => {
+  const { colors } = useTheme();
 
   const handleCollectionPress = (collection) => {
     navigation.navigate('CollectionDetail', { collection });
@@ -90,8 +95,20 @@ const ExploreScreen = ({ navigation }) => {
     navigation.navigate('CategoryDetail', { category });
   };
 
+  const handleCafePress = (cafe) => {
+    navigation.navigate('CafeDetail', { cafeId: cafe.id });
+  };
+
+  const handleMorePress = () => {
+    // Navigate to Search tab with a prefilled search or just open it
+    navigation.navigate('MainTabs', {
+      screen: 'Search',
+      params: { prefilledSearch: 'Trending' }
+    });
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -99,8 +116,8 @@ const ExploreScreen = ({ navigation }) => {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>탐색하기</Text>
-          <Text style={styles.headerSubtitle}>새로운 커피 경험을 발견해보세요.</Text>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>탐색하기</Text>
+          <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>새로운 커피 경험을 발견해보세요.</Text>
         </View>
 
         {/* Trending Section */}
@@ -108,7 +125,7 @@ const ExploreScreen = ({ navigation }) => {
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
               <Ionicons name="trending-up" size={20} color={Colors.amber600} />
-              <Text style={styles.sectionTitle}>지금 뜨는 카페</Text>
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>지금 뜨는 카페</Text>
             </View>
           </View>
 
@@ -120,8 +137,9 @@ const ExploreScreen = ({ navigation }) => {
             {TRENDING_CAFES.map((cafe, index) => (
               <TouchableOpacity
                 key={index}
-                style={styles.trendingCard}
+                style={[styles.trendingCard, { backgroundColor: colors.backgroundWhite }]}
                 activeOpacity={0.8}
+                onPress={() => handleCafePress(cafe)}
               >
                 <View style={styles.trendingImageContainer}>
                   <Image source={{ uri: cafe.image }} style={styles.trendingImage} />
@@ -131,8 +149,8 @@ const ExploreScreen = ({ navigation }) => {
                   </View>
                 </View>
                 <View style={styles.trendingInfo}>
-                  <Text style={styles.trendingName}>{cafe.name}</Text>
-                  <Text style={styles.trendingLocation}>{cafe.location}</Text>
+                  <Text style={[styles.trendingName, { color: colors.textPrimary }]}>{cafe.name}</Text>
+                  <Text style={[styles.trendingLocation, { color: colors.textSecondary }]}>{cafe.location}</Text>
                 </View>
               </TouchableOpacity>
             ))}
@@ -144,9 +162,9 @@ const ExploreScreen = ({ navigation }) => {
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
               <Ionicons name="sparkles" size={20} color={Colors.amber600} />
-              <Text style={styles.sectionTitle}>이번 주 에디터 픽</Text>
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>이번 주 에디터 픽</Text>
             </View>
-            <TouchableOpacity style={styles.moreButton}>
+            <TouchableOpacity style={styles.moreButton} onPress={handleMorePress}>
               <Text style={styles.moreButtonText}>더보기</Text>
               <Ionicons name="arrow-forward" size={14} color={Colors.amber600} />
             </TouchableOpacity>
@@ -186,7 +204,7 @@ const ExploreScreen = ({ navigation }) => {
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
               <Ionicons name="cafe" size={20} color={Colors.amber600} />
-              <Text style={styles.sectionTitle}>카테고리별로 찾기</Text>
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>카테고리별로 찾기</Text>
             </View>
           </View>
 
@@ -194,11 +212,11 @@ const ExploreScreen = ({ navigation }) => {
             {CATEGORIES.map((cat, index) => (
               <TouchableOpacity
                 key={index}
-                style={styles.categoryCard}
+                style={[styles.categoryCard, { backgroundColor: colors.backgroundWhite }]}
                 activeOpacity={0.7}
                 onPress={() => handleCategoryPress(cat)}
               >
-                <Text style={styles.categoryText}>#{cat}</Text>
+                <Text style={[styles.categoryText, { color: colors.textSecondary }]}>#{cat}</Text>
               </TouchableOpacity>
             ))}
           </View>

@@ -12,16 +12,19 @@ import {
   Switch,
   Alert,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import Colors from '../constants/colors';
 import Typography from '../constants/typography';
 
 const SettingsScreen = ({ navigation }) => {
   const { signOut } = useAuth();
+  const { isDarkMode, toggleTheme, colors } = useTheme();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [darkModeEnabled, setDarkModeEnabled] = useState(false);
 
   // Navigate to Profile Edit screen
   const handleProfileEdit = () => {
@@ -38,16 +41,35 @@ const SettingsScreen = ({ navigation }) => {
     navigation.navigate('Support');
   };
 
+  // Load settings on mount (Notifications only, Theme handled by Context)
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    try {
+      const savedNotifications = await AsyncStorage.getItem('notificationsEnabled');
+      if (savedNotifications !== null) {
+        setNotificationsEnabled(JSON.parse(savedNotifications));
+      }
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    }
+  };
+
   // Toggle notifications
-  const handleNotificationsToggle = (value) => {
-    setNotificationsEnabled(value);
-    // Note: UI-only toggle for v0.1. Actual notification settings will be implemented in future version
+  const handleNotificationsToggle = async (value) => {
+    try {
+      setNotificationsEnabled(value);
+      await AsyncStorage.setItem('notificationsEnabled', JSON.stringify(value));
+    } catch (error) {
+      console.error('Error saving notifications setting:', error);
+    }
   };
 
   // Toggle dark mode
   const handleDarkModeToggle = (value) => {
-    setDarkModeEnabled(value);
-    // Note: UI-only toggle for v0.1. Actual dark mode will be implemented in future version
+    toggleTheme(value);
   };
 
   // Handle logout
@@ -79,17 +101,17 @@ const SettingsScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: colors.backgroundWhite, borderBottomColor: colors.border }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
           activeOpacity={0.7}
         >
-          <Ionicons name="arrow-back" size={20} color={Colors.stone600} />
+          <Ionicons name="arrow-back" size={20} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>설정</Text>
+        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>설정</Text>
       </View>
 
       <ScrollView
@@ -99,13 +121,13 @@ const SettingsScreen = ({ navigation }) => {
       >
         {/* Account Section */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
+          <View style={[styles.sectionHeader, { backgroundColor: colors.stone50, borderColor: colors.border }]}>
             <Text style={styles.sectionTitle}>계정</Text>
           </View>
-          <View style={styles.sectionContent}>
+          <View style={[styles.sectionContent, { backgroundColor: colors.backgroundWhite, borderColor: colors.border }]}>
             {/* Profile Edit */}
             <TouchableOpacity
-              style={[styles.settingItem, styles.settingItemWithBorder]}
+              style={[styles.settingItem, styles.settingItemWithBorder, { borderBottomColor: colors.divider }]}
               onPress={handleProfileEdit}
               activeOpacity={0.7}
             >
@@ -113,12 +135,12 @@ const SettingsScreen = ({ navigation }) => {
                 <View style={[styles.iconContainer, styles.iconAmber]}>
                   <Ionicons name="person" size={16} color={Colors.amber600} />
                 </View>
-                <Text style={styles.settingLabel}>프로필 편집</Text>
+                <Text style={[styles.settingLabel, { color: colors.textPrimary }]}>프로필 편집</Text>
               </View>
               <Ionicons
                 name="chevron-forward"
                 size={16}
-                color={Colors.stone400}
+                color={colors.textTertiary}
               />
             </TouchableOpacity>
 
@@ -132,12 +154,12 @@ const SettingsScreen = ({ navigation }) => {
                 <View style={[styles.iconContainer, styles.iconGreen]}>
                   <Ionicons name="shield" size={16} color={Colors.green600} />
                 </View>
-                <Text style={styles.settingLabel}>개인정보 및 보안</Text>
+                <Text style={[styles.settingLabel, { color: colors.textPrimary }]}>개인정보 및 보안</Text>
               </View>
               <Ionicons
                 name="chevron-forward"
                 size={16}
-                color={Colors.stone400}
+                color={colors.textTertiary}
               />
             </TouchableOpacity>
           </View>
@@ -145,12 +167,12 @@ const SettingsScreen = ({ navigation }) => {
 
         {/* App Settings Section */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
+          <View style={[styles.sectionHeader, { backgroundColor: colors.stone50, borderColor: colors.border }]}>
             <Text style={styles.sectionTitle}>앱 설정</Text>
           </View>
-          <View style={styles.sectionContent}>
+          <View style={[styles.sectionContent, { backgroundColor: colors.backgroundWhite, borderColor: colors.border }]}>
             {/* Notifications */}
-            <View style={[styles.settingItem, styles.settingItemWithBorder]}>
+            <View style={[styles.settingItem, styles.settingItemWithBorder, { borderBottomColor: colors.divider }]}>
               <View style={styles.settingLeft}>
                 <View style={[styles.iconContainer, styles.iconBlue]}>
                   <Ionicons
@@ -159,17 +181,17 @@ const SettingsScreen = ({ navigation }) => {
                     color={Colors.blue600}
                   />
                 </View>
-                <Text style={styles.settingLabel}>알림 설정</Text>
+                <Text style={[styles.settingLabel, { color: colors.textPrimary }]}>알림 설정</Text>
               </View>
               <Switch
                 value={notificationsEnabled}
                 onValueChange={handleNotificationsToggle}
                 trackColor={{
-                  false: Colors.stone300,
-                  true: Colors.accent,
+                  false: colors.stone300,
+                  true: colors.accent,
                 }}
-                thumbColor={Colors.backgroundWhite}
-                ios_backgroundColor={Colors.stone300}
+                thumbColor={colors.backgroundWhite}
+                ios_backgroundColor={colors.stone300}
               />
             </View>
 
@@ -179,17 +201,17 @@ const SettingsScreen = ({ navigation }) => {
                 <View style={[styles.iconContainer, styles.iconPurple]}>
                   <Ionicons name="moon" size={16} color={Colors.purple600} />
                 </View>
-                <Text style={styles.settingLabel}>다크 모드</Text>
+                <Text style={[styles.settingLabel, { color: colors.textPrimary }]}>다크 모드</Text>
               </View>
               <Switch
-                value={darkModeEnabled}
+                value={isDarkMode}
                 onValueChange={handleDarkModeToggle}
                 trackColor={{
-                  false: Colors.stone300,
-                  true: Colors.accent,
+                  false: colors.stone300,
+                  true: colors.accent,
                 }}
-                thumbColor={Colors.backgroundWhite}
-                ios_backgroundColor={Colors.stone300}
+                thumbColor={colors.backgroundWhite}
+                ios_backgroundColor={colors.stone300}
               />
             </View>
           </View>
@@ -197,10 +219,10 @@ const SettingsScreen = ({ navigation }) => {
 
         {/* Support Section */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
+          <View style={[styles.sectionHeader, { backgroundColor: colors.stone50, borderColor: colors.border }]}>
             <Text style={styles.sectionTitle}>지원</Text>
           </View>
-          <View style={styles.sectionContent}>
+          <View style={[styles.sectionContent, { backgroundColor: colors.backgroundWhite, borderColor: colors.border }]}>
             {/* Help & Support */}
             <TouchableOpacity
               style={styles.settingItem}
@@ -215,12 +237,12 @@ const SettingsScreen = ({ navigation }) => {
                     color={Colors.orange600}
                   />
                 </View>
-                <Text style={styles.settingLabel}>도움말 및 문의하기</Text>
+                <Text style={[styles.settingLabel, { color: colors.textPrimary }]}>도움말 및 문의하기</Text>
               </View>
               <Ionicons
                 name="chevron-forward"
                 size={16}
-                color={Colors.stone400}
+                color={colors.textTertiary}
               />
             </TouchableOpacity>
           </View>
@@ -228,7 +250,7 @@ const SettingsScreen = ({ navigation }) => {
 
         {/* Logout Button */}
         <TouchableOpacity
-          style={styles.logoutButton}
+          style={[styles.logoutButton, { backgroundColor: colors.backgroundWhite, borderColor: '#FEE2E2' }]}
           onPress={handleLogout}
           activeOpacity={0.7}
         >

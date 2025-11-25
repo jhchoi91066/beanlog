@@ -15,20 +15,40 @@ import PropTypes from 'prop-types';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography } from '../constants';
 import { LoadingSpinner, EmptyState, Tag, StarRating } from '../components';
-import { getCafeById } from '../services/cafeService';
+import { useAuth } from '../contexts/AuthContext';
+import { getCafeById, toggleCafeBookmark } from '../services/cafeService';
 import { getReviewsByCafe } from '../services/reviewService';
+import { Alert } from 'react-native';
 
-const CafeDetailScreen = ({ route }) => {
+const CafeDetailScreen = ({ route, navigation }) => {
   const { cafeId } = route.params;
 
   const [cafe, setCafe] = useState(null);
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const { user } = useAuth();
+  const [isBookmarked, setIsBookmarked] = useState(false);
+
   // Fetch cafe info and reviews on component mount
   useEffect(() => {
     fetchCafeData();
   }, [cafeId]);
+
+  // Set up header bookmark button
+  useEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity onPress={handleBookmark} style={{ marginRight: 16 }}>
+          <Ionicons
+            name={isBookmarked ? 'heart' : 'heart-outline'}
+            size={24}
+            color={isBookmarked ? Colors.error : Colors.stone800}
+          />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, isBookmarked]);
 
   /**
    * Fetch cafe information and reviews
@@ -46,6 +66,12 @@ const CafeDetailScreen = ({ route }) => {
 
       setCafe(cafeData);
       setReviews(reviewsData);
+
+      // Check if bookmarked
+      if (user && cafeData) {
+        const bookmarkedBy = cafeData.bookmarkedBy || [];
+        setIsBookmarked(bookmarkedBy.includes(user.uid));
+      }
     } catch (error) {
       // Firebase is not configured yet, so service calls will fail
       // Show empty state when error occurs
@@ -54,6 +80,26 @@ const CafeDetailScreen = ({ route }) => {
       setReviews([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleBookmark = async () => {
+    if (!user) {
+      Alert.alert('로그인 필요', '북마크하려면 로그인이 필요합니다.');
+      return;
+    }
+
+    try {
+      // Optimistic update
+      const newStatus = !isBookmarked;
+      setIsBookmarked(newStatus);
+
+      await toggleCafeBookmark(cafeId, user.uid);
+    } catch (error) {
+      console.error('Error toggling bookmark:', error);
+      // Revert on error
+      setIsBookmarked(!isBookmarked);
+      Alert.alert('오류', '북마크 저장에 실패했습니다.');
     }
   };
 
@@ -71,25 +117,23 @@ const CafeDetailScreen = ({ route }) => {
           <StarRating rating={item.rating} readonly={true} size={16} />
         </View>
 
-        {/* v0.2: F-PHOTO - Display photos if available */}
-        {item.photoUrls && item.photoUrls.length > 0 && (
-          <View style={styles.photosContainer}>
-            {item.photoUrls.map((photoUrl, index) => (
-              <TouchableOpacity
-                key={`${item.id}-photo-${index}`}
-                onPress={() => {
-                  // Full-screen image viewer will be implemented in future version
-                }}
-              >
-                <Image
-                  source={{ uri: photoUrl }}
-                  style={styles.photoThumbnail}
-                  resizeMode="cover"
-                />
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+        {/* v0.2: F-PHOTO - Display photos if available, otherwise show default */}
+        <View style={styles.photosContainer}>
+          {(item.photoUrls && item.photoUrls.length > 0 ? item.photoUrls : ['https://images.unsplash.com/photo-1497935586351-b67a49e012bf?q=80&w=1000&auto=format&fit=crop']).map((photoUrl, index) => (
+            <TouchableOpacity
+              key={`${item.id}-photo-${index}`}
+              onPress={() => {
+                // Full-screen image viewer will be implemented in future version
+              }}
+            >
+              <Image
+                source={{ uri: photoUrl }}
+                style={styles.photoThumbnail}
+                resizeMode="cover"
+              />
+            </TouchableOpacity>
+          ))}
+        </View>
 
         {/* Basic tags (맛 태그) */}
         {item.basicTags && item.basicTags.length > 0 && (

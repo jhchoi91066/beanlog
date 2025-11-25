@@ -28,10 +28,12 @@ import {
 } from '../services/searchService';
 import { getAllCafes } from '../services/cafeService';
 import NaverMapView from '../components/NaverMapView';
+import { useTheme } from '../contexts';
 
 const { width, height } = Dimensions.get('window');
 
 const SearchScreen = ({ navigation, route }) => {
+  const { colors } = useTheme();
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'map'
   const [searchText, setSearchText] = useState('');
   const [cafes, setCafes] = useState([]);
@@ -195,25 +197,25 @@ const SearchScreen = ({ navigation, route }) => {
             </View>
 
             {/* Bottom info card */}
-            <View style={styles.mapInfoCard}>
+            <View style={[styles.mapInfoCard, { backgroundColor: colors.backgroundWhite, borderColor: colors.border }]}>
               <View style={styles.mapInfoCardContent}>
                 <View style={styles.mapInfoIcon}>
                   <Ionicons name="location" size={20} color={Colors.amber600} />
                 </View>
                 <View style={styles.mapInfoText}>
-                  <Text style={styles.mapInfoTitle}>
+                  <Text style={[styles.mapInfoTitle, { color: colors.textPrimary }]}>
                     {searchText ? `"${searchText}" 검색 결과` : '카페 지도'}
                   </Text>
-                  <Text style={styles.mapInfoSubtitle}>
+                  <Text style={[styles.mapInfoSubtitle, { color: colors.textSecondary }]}>
                     현재 지도에 {cafesWithCoordinates.length}개의 카페가 있어요
                   </Text>
                 </View>
               </View>
               <TouchableOpacity
-                style={styles.mapInfoButton}
+                style={[styles.mapInfoButton, { backgroundColor: colors.textPrimary }]}
                 onPress={() => setViewMode('list')}
               >
-                <Text style={styles.mapInfoButtonText}>목록보기</Text>
+                <Text style={[styles.mapInfoButtonText, { color: colors.backgroundWhite }]}>목록보기</Text>
               </TouchableOpacity>
             </View>
           </>
@@ -225,22 +227,22 @@ const SearchScreen = ({ navigation, route }) => {
   // Render cafe result item
   const renderCafeItem = ({ item }) => (
     <TouchableOpacity
-      style={styles.cafeResultItem}
+      style={[styles.cafeResultItem, { backgroundColor: colors.backgroundWhite, borderColor: colors.border }]}
       onPress={() => handleCafePress(item)}
       activeOpacity={0.7}
     >
       <View style={styles.cafeResultContent}>
-        <View style={styles.cafeResultIcon}>
-          <Ionicons name="cafe" size={20} color={Colors.amber600} />
+        <View style={[styles.cafeResultIcon, { backgroundColor: colors.stone100 }]}>
+          <Ionicons name="cafe" size={20} color={colors.textSecondary} />
         </View>
         <View style={styles.cafeResultText}>
-          <Text style={styles.cafeResultName}>{item.name}</Text>
-          <Text style={styles.cafeResultAddress} numberOfLines={1}>
+          <Text style={[styles.cafeResultName, { color: colors.textPrimary }]}>{item.name}</Text>
+          <Text style={[styles.cafeResultAddress, { color: colors.textSecondary }]} numberOfLines={1}>
             {item.address || '주소 정보 없음'}
           </Text>
         </View>
       </View>
-      <Ionicons name="chevron-forward" size={20} color={Colors.stone400} />
+      <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
     </TouchableOpacity>
   );
 
@@ -358,20 +360,20 @@ const SearchScreen = ({ navigation, route }) => {
             <View style={styles.sectionHeader}>
               <View style={styles.sectionTitleRow}>
                 <Ionicons name="time" size={16} color={Colors.amber600} />
-                <Text style={styles.sectionTitle}>최근 검색어</Text>
+                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>최근 검색어</Text>
               </View>
               <TouchableOpacity onPress={clearRecentSearchesHandler}>
-                <Text style={styles.clearButton}>지우기</Text>
+                <Text style={[styles.clearButton, { color: colors.textTertiary }]}>지우기</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.tagsContainer}>
               {recentSearches.map((term, index) => (
                 <TouchableOpacity
                   key={index}
-                  style={styles.tag}
+                  style={[styles.tag, { backgroundColor: colors.stone100 }]}
                   onPress={() => handleRecentSearchPress(term)}
                 >
-                  <Text style={styles.tagText}>{term}</Text>
+                  <Text style={[styles.tagText, { color: colors.textSecondary }]}>{term}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -397,14 +399,15 @@ const SearchScreen = ({ navigation, route }) => {
                   <Text
                     style={[
                       styles.trendingRank,
+                      { color: index < 3 ? colors.brand : colors.textTertiary },
                       index < 3 && styles.trendingRankTop,
                     ]}
                   >
                     {index + 1}
                   </Text>
-                  <Text style={styles.trendingKeyword}>#{keyword}</Text>
+                  <Text style={[styles.trendingKeyword, { color: colors.textPrimary }]}>#{keyword}</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={16} color={Colors.stone300} />
+                <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
               </TouchableOpacity>
             ))}
           </View>
@@ -414,19 +417,19 @@ const SearchScreen = ({ navigation, route }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.backgroundWhite }]}>
       {/* Search Header - Sticky */}
-      <View style={styles.searchHeader}>
-        <View style={styles.searchInputContainer}>
+      <View style={[styles.searchHeader, { backgroundColor: colors.backgroundWhite, borderBottomColor: colors.border }]}>
+        <View style={[styles.searchInputContainer, { backgroundColor: colors.stone50 }]}>
           <View style={styles.searchIconContainer}>
-            <Ionicons name="search" size={20} color={Colors.stone400} />
+            <Ionicons name="search" size={20} color={colors.textTertiary} />
           </View>
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: colors.textPrimary }]}
             placeholder={
               viewMode === 'map' ? '지도에서 지역 검색' : '검색어를 입력하세요'
             }
-            placeholderTextColor={Colors.stone400}
+            placeholderTextColor={colors.textTertiary}
             value={searchText}
             onChangeText={setSearchText}
             onSubmitEditing={handleSearchSubmit}
@@ -438,24 +441,30 @@ const SearchScreen = ({ navigation, route }) => {
               style={styles.clearIconContainer}
               onPress={clearSearch}
             >
-              <Ionicons name="close" size={16} color={Colors.stone400} />
+              <Ionicons name="close" size={16} color={colors.textTertiary} />
             </TouchableOpacity>
           )}
         </View>
 
         {/* View Toggle Buttons */}
-        <View style={styles.viewToggle}>
+        <View style={[styles.viewToggle, { backgroundColor: colors.stone100 }]}>
           <TouchableOpacity
-            style={[styles.viewButton, viewMode === 'list' && styles.viewButtonActive]}
+            style={[
+              styles.viewButton,
+              viewMode === 'list' && [styles.viewButtonActive, { backgroundColor: colors.backgroundWhite }]
+            ]}
             onPress={() => setViewMode('list')}
           >
-            <Ionicons name="list" size={20} color={viewMode === 'list' ? Colors.amber600 : Colors.stone400} />
+            <Ionicons name="list" size={20} color={viewMode === 'list' ? Colors.amber600 : colors.textTertiary} />
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.viewButton, viewMode === 'map' && styles.viewButtonActive]}
+            style={[
+              styles.viewButton,
+              viewMode === 'map' && [styles.viewButtonActive, { backgroundColor: colors.backgroundWhite }]
+            ]}
             onPress={() => setViewMode('map')}
           >
-            <Ionicons name="map" size={20} color={viewMode === 'map' ? Colors.amber600 : Colors.stone400} />
+            <Ionicons name="map" size={20} color={viewMode === 'map' ? Colors.amber600 : colors.textTertiary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -469,7 +478,7 @@ const SearchScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.backgroundWhite,
+    backgroundColor: Colors.backgroundWhite, // Will be overridden by inline style if needed, but keeping for safety
   },
   searchHeader: {
     flexDirection: 'row',

@@ -11,6 +11,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '../constants/colors';
 import Typography from '../constants/typography';
+import { useAuth } from '../contexts/AuthContext';
+import { deleteUser } from '../services/userService';
 
 const PrivacySecurityScreen = ({ navigation }) => {
     const handlePasswordChange = () => {
@@ -25,16 +27,39 @@ const PrivacySecurityScreen = ({ navigation }) => {
         Alert.alert('준비중', '데이터 관리 기능은 곧 출시됩니다.');
     };
 
+    const { user, signOut } = useAuth();
+
     const handleDeleteAccount = () => {
         Alert.alert(
             '회원 탈퇴',
-            '정말 탈퇴하시겠습니까? 이 작업은 되돌릴 수 없습니다.',
+            '정말 탈퇴하시겠습니까? 이 작업은 되돌릴 수 없으며 모든 데이터가 삭제됩니다.',
             [
                 { text: '취소', style: 'cancel' },
                 {
                     text: '탈퇴',
                     style: 'destructive',
-                    onPress: () => Alert.alert('알림', '탈퇴 처리가 완료되었습니다.')
+                    onPress: async () => {
+                        try {
+                            // 1. Delete user data from Firestore
+                            await deleteUser(user.uid);
+
+                            // 2. Delete user authentication
+                            // Note: This requires recent login. If it fails, we might need to re-authenticate.
+                            await user.delete();
+
+                            // 3. Sign out (handled automatically by auth state change usually, but good to be explicit)
+                            // await signOut(); 
+
+                            Alert.alert('알림', '탈퇴 처리가 완료되었습니다.');
+                        } catch (error) {
+                            console.error('Error deleting account:', error);
+                            if (error.code === 'auth/requires-recent-login') {
+                                Alert.alert('오류', '보안을 위해 다시 로그인한 후 시도해주세요.');
+                            } else {
+                                Alert.alert('오류', '회원 탈퇴 중 문제가 발생했습니다.');
+                            }
+                        }
+                    }
                 }
             ]
         );

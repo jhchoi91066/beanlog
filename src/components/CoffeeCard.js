@@ -189,7 +189,7 @@ const CoffeeCard = ({ post, onPress, index = 0 }) => {
         {/* Image Section */}
         <View style={styles.imageContainer}>
           <Animated.Image
-            source={{ uri: post.imageUrl }}
+            source={{ uri: post.imageUrl || 'https://images.unsplash.com/photo-1497935586351-b67a49e012bf?q=80&w=1000&auto=format&fit=crop' }}
             style={[
               styles.image,
               {

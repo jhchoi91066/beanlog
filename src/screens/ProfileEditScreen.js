@@ -15,16 +15,36 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '../constants/colors';
 import Typography from '../constants/typography';
+import { useAuth } from '../contexts/AuthContext';
+import { updateUser } from '../services/userService';
 
 const ProfileEditScreen = ({ navigation }) => {
     const [nickname, setNickname] = useState('커피러버');
     const [bio, setBio] = useState('오늘도 맛있는 한 잔 ☕️');
 
-    const handleSave = () => {
-        // Here you would typically make an API call to update the profile
-        Alert.alert('성공', '프로필이 저장되었습니다.', [
-            { text: '확인', onPress: () => navigation.goBack() }
-        ]);
+    const { user } = useAuth();
+    const [loading, setLoading] = useState(false);
+
+    const handleSave = async () => {
+        if (!user) return;
+
+        try {
+            setLoading(true);
+            await updateUser(user.uid, {
+                displayName: nickname,
+                bio: bio, // Note: 'bio' field needs to be supported in userService/Firestore schema
+                photoURL: 'https://i.pravatar.cc/150?u=me', // TODO: Implement real photo upload
+            });
+
+            Alert.alert('성공', '프로필이 저장되었습니다.', [
+                { text: '확인', onPress: () => navigation.goBack() }
+            ]);
+        } catch (error) {
+            console.error('Error updating profile:', error);
+            Alert.alert('오류', '프로필 저장 중 문제가 발생했습니다.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -43,8 +63,11 @@ const ProfileEditScreen = ({ navigation }) => {
                     style={styles.saveButton}
                     onPress={handleSave}
                     activeOpacity={0.7}
+                    disabled={loading}
                 >
-                    <Text style={styles.saveButtonText}>저장</Text>
+                    <Text style={[styles.saveButtonText, loading && { color: Colors.stone400 }]}>
+                        {loading ? '저장 중...' : '저장'}
+                    </Text>
                 </TouchableOpacity>
             </View>
 

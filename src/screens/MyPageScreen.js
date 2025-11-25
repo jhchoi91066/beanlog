@@ -21,10 +21,12 @@ import CoffeeCard from '../components/CoffeeCard';
 import FlavorProfile from '../components/FlavorProfile';
 import { LoadingSpinner } from '../components';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts';
 import { getReviewsByUser, deleteReview } from '../services/reviewService';
-import { getCafeById } from '../services/cafeService';
+import { getCafeById, getSavedCafes } from '../services/cafeService';
 
 const MyPageScreen = ({ navigation }) => {
+  const { colors } = useTheme();
   const { user, signOut } = useAuth();
 
   // State management
@@ -387,17 +389,42 @@ const MyPageScreen = ({ navigation }) => {
     }
   };
 
+  // State for saved cafes
+  const [savedCafes, setSavedCafes] = useState([]);
+
+  /**
+   * Fetch saved cafes
+   */
+  const fetchSavedCafes = async () => {
+    try {
+      setLoading(true);
+      const cafes = await getSavedCafes(user.uid);
+      setSavedCafes(cafes);
+    } catch (error) {
+      console.error('Error fetching saved cafes:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch saved cafes when tab changes
+  useEffect(() => {
+    if (activeTab === 'saved' && user) {
+      fetchSavedCafes();
+    }
+  }, [activeTab, user]);
+
   /**
    * Render tab content
-   * "내 기록" shows user's reviews, "찜한 커피" shows saved items (future)
+   * "내 기록" shows user's reviews, "찜한 커피" shows saved items
    */
   const renderTabContent = () => {
     if (activeTab === 'logs') {
       if (reviewsWithCafeInfo.length === 0) {
         return (
           <View style={styles.emptyState}>
-            <Ionicons name="cafe-outline" size={48} color={Colors.stone300} />
-            <Text style={styles.emptyStateText}>아직 기록이 없습니다.</Text>
+            <Ionicons name="cafe-outline" size={48} color={colors.textTertiary} />
+            <Text style={[styles.emptyStateText, { color: colors.textSecondary }]}>아직 기록이 없습니다.</Text>
           </View>
         );
       }
@@ -416,18 +443,18 @@ const MyPageScreen = ({ navigation }) => {
                     style={styles.actionButton}
                     onPress={() => handleEditReview(review)}
                   >
-                    <Ionicons name="create-outline" size={20} color={Colors.stone600} />
-                    <Text style={styles.actionButtonText}>수정</Text>
+                    <Ionicons name="create-outline" size={20} color={colors.textSecondary} />
+                    <Text style={[styles.actionButtonText, { color: colors.textSecondary }]}>수정</Text>
                   </TouchableOpacity>
 
-                  <View style={styles.actionDivider} />
+                  <View style={[styles.actionDivider, { backgroundColor: colors.border }]} />
 
                   <TouchableOpacity
                     style={styles.actionButton}
                     onPress={() => handleDeleteReview(review)}
                   >
-                    <Ionicons name="trash-outline" size={20} color={Colors.stone600} />
-                    <Text style={styles.actionButtonText}>삭제</Text>
+                    <Ionicons name="trash-outline" size={20} color={colors.textSecondary} />
+                    <Text style={[styles.actionButtonText, { color: colors.textSecondary }]}>삭제</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -438,11 +465,35 @@ const MyPageScreen = ({ navigation }) => {
     }
 
     if (activeTab === 'saved') {
-      // TODO: Implement saved items feature in future version
+      if (savedCafes.length === 0) {
+        return (
+          <View style={styles.emptyState}>
+            <Ionicons name="heart-outline" size={48} color={Colors.stone300} />
+            <Text style={styles.emptyStateText}>아직 찜한 커피가 없습니다.</Text>
+          </View>
+        );
+      }
+
       return (
-        <View style={styles.emptyState}>
-          <Ionicons name="heart-outline" size={48} color={Colors.stone300} />
-          <Text style={styles.emptyStateText}>아직 찜한 커피가 없습니다.</Text>
+        <View style={styles.postsContainer}>
+          {savedCafes.map((cafe, index) => (
+            <TouchableOpacity
+              key={cafe.id}
+              style={[styles.savedCafeCard, { backgroundColor: colors.backgroundWhite, borderColor: colors.border }]}
+              onPress={() => navigation.navigate('CafeDetail', { cafeId: cafe.id })}
+            >
+              <View style={styles.savedCafeContent}>
+                <View style={[styles.savedCafeIcon, { backgroundColor: colors.stone100 }]}>
+                  <Ionicons name="cafe" size={24} color={Colors.amber600} />
+                </View>
+                <View style={styles.savedCafeInfo}>
+                  <Text style={[styles.savedCafeName, { color: colors.textPrimary }]}>{cafe.name}</Text>
+                  <Text style={[styles.savedCafeAddress, { color: colors.textSecondary }]}>{cafe.address}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
+              </View>
+            </TouchableOpacity>
+          ))}
         </View>
       );
     }
@@ -456,14 +507,14 @@ const MyPageScreen = ({ navigation }) => {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         {/* Header Section */}
-        <View style={styles.headerSection}>
+        <View style={[styles.headerSection, { backgroundColor: colors.backgroundWhite, borderBottomColor: colors.border }]}>
           <View style={styles.headerTop}>
             {/* Avatar and Info */}
             <View style={styles.profileInfo}>
@@ -482,8 +533,8 @@ const MyPageScreen = ({ navigation }) => {
                 )}
               </View>
               <View style={styles.userInfo}>
-                <Text style={styles.userName}>{user?.displayName || '익명'}</Text>
-                <Text style={styles.userBio}>{user?.email || '오늘도 맛있는 한 잔 ☕️'}</Text>
+                <Text style={[styles.userName, { color: colors.textPrimary }]}>{user?.displayName || '익명'}</Text>
+                <Text style={[styles.userBio, { color: colors.textSecondary }]}>{user?.email || '오늘도 맛있는 한 잔 ☕️'}</Text>
                 <View style={styles.levelBadge}>
                   <Ionicons name="trophy" size={12} color={Colors.amber700} />
                   <Text style={styles.levelText}>Barista Level</Text>
@@ -493,39 +544,39 @@ const MyPageScreen = ({ navigation }) => {
 
             {/* Settings Button (triggers logout) */}
             <TouchableOpacity
-              style={styles.settingsButton}
+              style={[styles.settingsButton, { backgroundColor: colors.backgroundWhite, borderColor: colors.border }]}
               onPress={handleSettingsPress}
             >
-              <Ionicons name="settings-outline" size={20} color={Colors.stone600} />
+              <Ionicons name="settings-outline" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
           {/* Stats */}
           <View style={styles.statsContainer}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{statistics.totalCoffees}</Text>
-              <Text style={styles.statLabel}>기록</Text>
+              <Text style={[styles.statValue, { color: colors.textPrimary }]}>{statistics.totalCoffees}</Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>기록</Text>
             </View>
-            <View style={styles.statDivider} />
+            <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{statistics.avgRating || '0.0'}</Text>
-              <Text style={styles.statLabel}>평균 별점</Text>
+              <Text style={[styles.statValue, { color: colors.textPrimary }]}>{statistics.avgRating || '0.0'}</Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>평균 별점</Text>
             </View>
-            <View style={styles.statDivider} />
+            <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>
+              <Text style={[styles.statValue, { color: colors.textPrimary }]}>
                 {statistics.favoriteTag ? `#${statistics.favoriteTag}` : '-'}
               </Text>
-              <Text style={styles.statLabel}>선호 태그</Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>선호 태그</Text>
             </View>
           </View>
 
           {/* Flavor Preference Card */}
-          <View style={styles.flavorCard}>
+          <View style={[styles.flavorCard, { backgroundColor: colors.stone50 }]}>
             <View style={styles.flavorContent}>
               <View style={styles.flavorTextContainer}>
-                <Text style={styles.flavorTitle}>나의 커피 취향</Text>
-                <Text style={styles.flavorDescription}>
+                <Text style={[styles.flavorTitle, { color: colors.textPrimary }]}>나의 커피 취향</Text>
+                <Text style={[styles.flavorDescription, { color: colors.textSecondary }]}>
                   {getFlavorDescription()}
                 </Text>
               </View>
@@ -545,19 +596,20 @@ const MyPageScreen = ({ navigation }) => {
             <TouchableOpacity
               style={[
                 styles.tabHeader,
-                activeTab === 'logs' && styles.tabHeaderActive,
+                activeTab === 'logs' && [styles.tabHeaderActive, { borderBottomColor: colors.textPrimary }],
               ]}
               onPress={() => setActiveTab('logs')}
             >
               <Ionicons
                 name="cafe"
                 size={16}
-                color={activeTab === 'logs' ? Colors.stone900 : Colors.stone500}
+                color={activeTab === 'logs' ? colors.textPrimary : colors.textTertiary}
               />
               <Text
                 style={[
                   styles.tabHeaderText,
-                  activeTab === 'logs' && styles.tabHeaderTextActive,
+                  { color: colors.textTertiary },
+                  activeTab === 'logs' && [styles.tabHeaderTextActive, { color: colors.textPrimary }],
                 ]}
               >
                 내 기록
@@ -567,7 +619,7 @@ const MyPageScreen = ({ navigation }) => {
             <TouchableOpacity
               style={[
                 styles.tabHeader,
-                activeTab === 'saved' && styles.tabHeaderActive,
+                activeTab === 'saved' && [styles.tabHeaderActive, { borderBottomColor: colors.textPrimary }],
               ]}
               onPress={() => setActiveTab('saved')}
             >
@@ -575,13 +627,14 @@ const MyPageScreen = ({ navigation }) => {
                 name="heart"
                 size={16}
                 color={
-                  activeTab === 'saved' ? Colors.stone900 : Colors.stone500
+                  activeTab === 'saved' ? colors.textPrimary : colors.textTertiary
                 }
               />
               <Text
                 style={[
                   styles.tabHeaderText,
-                  activeTab === 'saved' && styles.tabHeaderTextActive,
+                  { color: colors.textTertiary },
+                  activeTab === 'saved' && [styles.tabHeaderTextActive, { color: colors.textPrimary }],
                 ]}
               >
                 찜한 커피
@@ -798,8 +851,52 @@ const styles = StyleSheet.create({
     gap: 16,
     marginTop: 12,
     paddingVertical: 8,
-    backgroundColor: Colors.stone50,
-    borderRadius: 8,
+  },
+
+  // Saved Cafe Card
+  savedCafeCard: {
+    backgroundColor: Colors.backgroundWhite,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    // Shadow
+    ...Platform.select({
+      ios: {
+        shadowColor: Colors.shadow,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  savedCafeContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  savedCafeIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.amber100,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  savedCafeInfo: {
+    flex: 1,
+  },
+  savedCafeName: {
+    fontSize: Typography.body.fontSize,
+    fontWeight: Typography.label.fontWeight,
+    color: Colors.stone800,
+    marginBottom: 4,
+  },
+  savedCafeAddress: {
+    fontSize: Typography.captionSmall.fontSize,
+    color: Colors.stone500,
   },
   actionButton: {
     flexDirection: 'row',

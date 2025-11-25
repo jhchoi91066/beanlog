@@ -3,7 +3,7 @@
 // Note: Firestore doesn't support full-text search natively
 // For production, consider Algolia or Elasticsearch for advanced search
 
-import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, limit, addDoc, serverTimestamp, doc, deleteDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 

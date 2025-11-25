@@ -21,6 +21,7 @@ import { CoffeeCard, LoadingSpinner } from '../components';
 import NaverMapView from '../components/NaverMapView';
 import { getRecentReviews, getReviewsByTag } from '../services/feedService';
 import { getAllCafes } from '../services/cafeService';
+import { useTheme } from '../contexts';
 
 // Filter tags for coffee preferences (matches web design)
 const FILTER_TAGS = ['전체', '산미있는', '고소한', '디카페인', '핸드드립', '라떼맛집', '뷰맛집'];
@@ -131,6 +132,7 @@ const MOCK_POSTS = [
 ];
 
 const FeedHomeScreen = ({ navigation }) => {
+  const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState('feed');
   const [selectedFilter, setSelectedFilter] = useState('전체');
   const [posts, setPosts] = useState([]);
@@ -408,43 +410,64 @@ const FeedHomeScreen = ({ navigation }) => {
 
   const renderHeader = () => (
     <View style={styles.headerSection}>
-      <Text style={styles.greeting}>안녕하세요, 바리스타님 ☕️</Text>
-      <Text style={styles.subGreeting}>오늘의 추천 커피를 확인해보세요.</Text>
+      <Text style={[styles.greeting, { color: colors.textPrimary }]}>안녕하세요, 바리스타님 ☕️</Text>
+      <Text style={[styles.subGreeting, { color: colors.textSecondary }]}>오늘의 추천 커피를 확인해보세요.</Text>
     </View>
   );
 
   const renderTabs = () => (
     <View style={styles.tabsContainer}>
-      <View style={styles.tabsList}>
+      <View style={[styles.tabsList, { backgroundColor: colors.stone100 }]}>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'feed' && styles.activeTab]}
+          style={[
+            styles.tab,
+            activeTab === 'feed' && [styles.activeTab, { backgroundColor: colors.backgroundWhite }]
+          ]}
           onPress={() => setActiveTab('feed')}
         >
-          <Text style={[styles.tabText, activeTab === 'feed' && styles.activeTabText]}>
+          <Text style={[
+            styles.tabText,
+            { color: colors.textSecondary },
+            activeTab === 'feed' && [styles.activeTabText, { color: colors.textPrimary }]
+          ]}>
             피드
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'nearby' && styles.activeTab]}
+          style={[
+            styles.tab,
+            activeTab === 'nearby' && [styles.activeTab, { backgroundColor: colors.backgroundWhite }]
+          ]}
           onPress={() => setActiveTab('nearby')}
         >
-          <Text style={[styles.tabText, activeTab === 'nearby' && styles.activeTabText]}>
+          <Text style={[
+            styles.tabText,
+            { color: colors.textSecondary },
+            activeTab === 'nearby' && [styles.activeTabText, { color: colors.textPrimary }]
+          ]}>
             내 주변
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'ranking' && styles.activeTab]}
+          style={[
+            styles.tab,
+            activeTab === 'ranking' && [styles.activeTab, { backgroundColor: colors.backgroundWhite }]
+          ]}
           onPress={() => setActiveTab('ranking')}
         >
-          <Text style={[styles.tabText, activeTab === 'ranking' && styles.activeTabText]}>
+          <Text style={[
+            styles.tabText,
+            { color: colors.textSecondary },
+            activeTab === 'ranking' && [styles.activeTabText, { color: colors.textPrimary }]
+          ]}>
             랭킹
           </Text>
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity style={styles.filterButton}>
-        <Ionicons name="options-outline" size={16} color={Colors.stone600} />
-        <Text style={styles.filterButtonText}>필터</Text>
+      <TouchableOpacity style={[styles.filterButton, { borderColor: colors.border }]}>
+        <Ionicons name="options-outline" size={16} color={colors.textSecondary} />
+        <Text style={[styles.filterButtonText, { color: colors.textSecondary }]}>필터</Text>
       </TouchableOpacity>
     </View>
   );
@@ -461,13 +484,15 @@ const FeedHomeScreen = ({ navigation }) => {
           key={tag}
           style={[
             styles.filterTag,
-            selectedFilter === tag && styles.filterTagActive
+            { backgroundColor: colors.backgroundWhite, borderColor: colors.border },
+            selectedFilter === tag && [styles.filterTagActive, { backgroundColor: colors.textPrimary, borderColor: colors.textPrimary }]
           ]}
           onPress={() => setSelectedFilter(tag)}
         >
           <Text style={[
             styles.filterTagText,
-            selectedFilter === tag && styles.filterTagTextActive
+            { color: colors.textSecondary },
+            selectedFilter === tag && [styles.filterTagTextActive, { color: colors.backgroundWhite }]
           ]}>
             {tag}
           </Text>
@@ -614,28 +639,28 @@ const FeedHomeScreen = ({ navigation }) => {
               {nearbyCafes.map((cafe) => (
                 <TouchableOpacity
                   key={cafe.id}
-                  style={styles.cafeListItem}
+                  style={[styles.cafeListItem, { backgroundColor: colors.backgroundWhite, borderColor: colors.border }]}
                   onPress={() => handleCafePress(cafe)}
                   activeOpacity={0.7}
                 >
                   <View style={styles.cafeListItemContent}>
-                    <View style={styles.cafeListItemIcon}>
-                      <Ionicons name="cafe" size={20} color={Colors.amber600} />
+                    <View style={[styles.cafeListItemIcon, { backgroundColor: colors.stone100 }]}>
+                      <Ionicons name="cafe" size={20} color={colors.textSecondary} />
                     </View>
                     <View style={styles.cafeListItemText}>
-                      <Text style={styles.cafeName}>{cafe.name}</Text>
-                      <Text style={styles.cafeAddress} numberOfLines={1}>
+                      <Text style={[styles.cafeName, { color: colors.textPrimary }]}>{cafe.name}</Text>
+                      <Text style={[styles.cafeAddress, { color: colors.textSecondary }]} numberOfLines={1}>
                         {cafe.address || '주소 정보 없음'}
                       </Text>
                     </View>
                   </View>
                   <View style={styles.cafeListItemRight}>
-                    <Text style={styles.cafeDistance}>
+                    <Text style={[styles.cafeDistance, { color: colors.brand }]}>
                       {cafe.distance < 1
                         ? `${Math.round(cafe.distance * 1000)}m`
                         : `${cafe.distance.toFixed(1)}km`}
                     </Text>
-                    <Ionicons name="chevron-forward" size={16} color={Colors.stone400} />
+                    <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
                   </View>
                 </TouchableOpacity>
               ))}
@@ -672,7 +697,7 @@ const FeedHomeScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -685,9 +710,9 @@ const FeedHomeScreen = ({ navigation }) => {
 
         {/* Recommendation Widget */}
         {activeTab === 'feed' && (
-          <View style={styles.recommendationWidget}>
-            <Text style={styles.recommendationLabel}>오늘의 커피 취향</Text>
-            <Text style={styles.recommendationText}>산미있는 에티오피아 어때요?</Text>
+          <View style={[styles.recommendationWidget, { backgroundColor: colors.backgroundWhite, borderColor: colors.border }]}>
+            <Text style={[styles.recommendationLabel, { color: colors.textSecondary }]}>오늘의 커피 취향</Text>
+            <Text style={[styles.recommendationText, { color: colors.textPrimary }]}>산미있는 에티오피아 어때요?</Text>
           </View>
         )}
       </ScrollView>
