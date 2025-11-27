@@ -103,44 +103,71 @@ const HomeScreen = ({ navigation }) => {
    * Render a single cafe list item
    */
   const renderCafeItem = ({ item }) => {
-    // Show first 2 location tags
-    const displayLocationTags = item.locationTags ? item.locationTags.slice(0, 2) : [];
+    // Debug: Check cafe data
+    console.log('Cafe item:', item.name, item);
+
+    // Show first 3 location tags
+    const displayLocationTags = item.locationTags ? item.locationTags.slice(0, 3) : [];
+    // Get location display (second location tag for district, fallback to first)
+    const locationDisplay = item.locationTags && item.locationTags.length > 1
+      ? item.locationTags[1] // Use district (성수, 강남, etc.)
+      : item.locationTags && item.locationTags.length > 0
+      ? item.locationTags[0]
+      : '';
 
     return (
       <TouchableOpacity
         style={styles.cafeItem}
         onPress={() => handleCafePress(item.id)}
-        activeOpacity={0.7}
+        activeOpacity={0.8}
       >
-        {/* Cafe thumbnail image */}
-        <Image
-          source={{ uri: item.thumbnailUrl }}
-          style={styles.cafeThumbnail}
-          resizeMode="cover"
-        />
+        <View style={styles.cafeCardContent}>
+          {/* Cafe thumbnail image */}
+          <Image
+            source={{ uri: item.thumbnailUrl }}
+            style={styles.cafeThumbnail}
+            resizeMode="cover"
+          />
 
-        {/* Cafe info */}
-        <View style={styles.cafeInfo}>
-          <Text style={styles.cafeName} numberOfLines={1}>
-            {item.name}
-          </Text>
-
-          {/* Location tags */}
-          {displayLocationTags.length > 0 && (
-            <View style={styles.locationTagsContainer}>
-              {displayLocationTags.map((tag, index) => (
-                <Tag
-                  key={`${item.id}-location-${index}`}
-                  label={tag}
-                  selected={false}
-                  style={styles.locationTag}
-                />
-              ))}
+          {/* Cafe info */}
+          <View style={styles.cafeInfo}>
+            {/* Header: Name and Bookmark */}
+            <View style={styles.cafeHeader}>
+              <View style={styles.cafeTitleRow}>
+                <Text style={styles.cafeName} numberOfLines={1}>
+                  {item.name || '카페'}
+                </Text>
+                {/* Location row */}
+                {locationDisplay && (
+                  <View style={styles.cafeLocationRow}>
+                    <Ionicons name="location-sharp" size={12} color={Colors.stone400} />
+                    <Text style={styles.cafeLocation}>{locationDisplay}</Text>
+                  </View>
+                )}
+              </View>
+              <TouchableOpacity>
+                <Ionicons name="heart-outline" size={20} color={Colors.stone400} />
+              </TouchableOpacity>
             </View>
-          )}
 
-          {/* Rating - placeholder until we calculate from reviews */}
-          <Text style={styles.rating}>평점 준비중</Text>
+            {/* Rating row */}
+            <View style={styles.ratingRow}>
+              <Ionicons name="star" size={14} color={Colors.amber400} />
+              <Text style={styles.ratingText}>4.5</Text>
+              <Text style={styles.reviewText}>(준비중)</Text>
+            </View>
+
+            {/* Location tags */}
+            {displayLocationTags.length > 0 && (
+              <View style={styles.tagsRow}>
+                {displayLocationTags.map((tag, index) => (
+                  <View key={`${item.id}-tag-${index}`} style={styles.tag}>
+                    <Text style={styles.tagText}>{tag}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -343,48 +370,87 @@ const styles = StyleSheet.create({
   },
   // Cafe item styles
   cafeItem: {
-    flexDirection: 'row',
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.backgroundWhite,
     borderRadius: 12,
     marginBottom: 16,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Colors.border,
     // Shadow for iOS
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     // Elevation for Android
-    elevation: 2,
+    elevation: 3,
+  },
+  cafeCardContent: {
+    flexDirection: 'row',
+    padding: 16,
+    gap: 16,
   },
   cafeThumbnail: {
-    width: 100,
-    height: 100,
-    backgroundColor: Colors.divider,
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: Colors.stone200,
   },
   cafeInfo: {
     flex: 1,
-    padding: 12,
-    justifyContent: 'center',
+    justifyContent: 'space-between',
+  },
+  cafeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  cafeTitleRow: {
+    flex: 1,
+    marginRight: 8,
   },
   cafeName: {
-    ...Typography.h2,
-    color: Colors.textPrimary,
-    marginBottom: 6,
-  },
-  locationTagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 6,
-  },
-  locationTag: {
-    marginRight: 4,
+    fontSize: Typography.h4.fontSize,
+    fontWeight: Typography.h4.fontWeight,
+    color: Colors.stone800,
     marginBottom: 4,
   },
-  rating: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
+  cafeLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  cafeLocation: {
+    fontSize: Typography.captionSmall.fontSize,
+    color: Colors.stone500,
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  ratingText: {
+    fontSize: Typography.caption.fontSize,
+    fontWeight: 'bold',
+    color: Colors.stone800,
+  },
+  reviewText: {
+    fontSize: Typography.captionSmall.fontSize,
+    color: Colors.stone400,
+  },
+  tagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 8,
+  },
+  tag: {
+    backgroundColor: Colors.stone100,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  tagText: {
+    fontSize: 10,
+    color: Colors.stone600,
   },
 
   // v0.2: F-MAP - View toggle button

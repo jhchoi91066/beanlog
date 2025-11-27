@@ -1,7 +1,7 @@
 // BeanLog - Explore Screen
 // Ported from BeanLog2/src/components/explore/Explore.tsx
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,33 +18,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Colors from '../constants/colors';
 import Typography from '../constants/typography';
 import { useTheme } from '../contexts';
+import { getTrendingCafes } from '../services/exploreService';
 
 const { width } = Dimensions.get('window');
-
-// Mock Data
-const TRENDING_CAFES = [
-  {
-    id: "mock-1",
-    name: "테라로사",
-    location: "강릉",
-    image: "https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=400",
-    trend: "+24%",
-  },
-  {
-    id: "mock-2",
-    name: "모모스커피",
-    location: "부산",
-    image: "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=400",
-    trend: "+18%",
-  },
-  {
-    id: "mock-3",
-    name: "프릳츠",
-    location: "서울",
-    image: "https://images.unsplash.com/photo-1521017432531-fbd92d768814?w=400",
-    trend: "+15%",
-  },
-];
 
 const CURATED_COLLECTIONS = [
   {
@@ -86,6 +62,27 @@ const CATEGORIES = [
 
 const ExploreScreen = ({ navigation }) => {
   const { colors } = useTheme();
+  const [trendingCafes, setTrendingCafes] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch trending cafes on mount
+  useEffect(() => {
+    fetchTrendingCafes();
+  }, []);
+
+  const fetchTrendingCafes = async () => {
+    try {
+      setLoading(true);
+      const cafes = await getTrendingCafes();
+      setTrendingCafes(cafes);
+    } catch (error) {
+      console.error('Error loading trending cafes:', error);
+      // Keep empty array on error
+      setTrendingCafes([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleCollectionPress = (collection) => {
     navigation.navigate('CollectionDetail', { collection });
@@ -96,6 +93,7 @@ const ExploreScreen = ({ navigation }) => {
   };
 
   const handleCafePress = (cafe) => {
+    // Use cafe.id which is already the cafeId from the service
     navigation.navigate('CafeDetail', { cafeId: cafe.id });
   };
 
@@ -134,26 +132,39 @@ const ExploreScreen = ({ navigation }) => {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.trendingScrollContent}
           >
-            {TRENDING_CAFES.map((cafe, index) => (
-              <TouchableOpacity
-                key={index}
-                style={[styles.trendingCard, { backgroundColor: colors.backgroundWhite }]}
-                activeOpacity={0.8}
-                onPress={() => handleCafePress(cafe)}
-              >
-                <View style={styles.trendingImageContainer}>
-                  <Image source={{ uri: cafe.image }} style={styles.trendingImage} />
-                  <View style={styles.trendBadge}>
-                    <Ionicons name="trending-up" size={10} color="#FFFFFF" />
-                    <Text style={styles.trendBadgeText}>{cafe.trend}</Text>
+            {loading ? (
+              // Loading placeholder
+              <View style={styles.loadingContainer}>
+                <Text style={[styles.loadingText, { color: colors.textSecondary }]}>로딩 중...</Text>
+              </View>
+            ) : trendingCafes.length === 0 ? (
+              // Empty state
+              <View style={styles.emptyContainer}>
+                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>추천 카페가 없습니다</Text>
+              </View>
+            ) : (
+              // Render trending cafes
+              trendingCafes.map((cafe, index) => (
+                <TouchableOpacity
+                  key={cafe.firestoreId || index}
+                  style={[styles.trendingCard, { backgroundColor: colors.backgroundWhite }]}
+                  activeOpacity={0.8}
+                  onPress={() => handleCafePress(cafe)}
+                >
+                  <View style={styles.trendingImageContainer}>
+                    <Image source={{ uri: cafe.image }} style={styles.trendingImage} />
+                    <View style={styles.trendBadge}>
+                      <Ionicons name="trending-up" size={10} color="#FFFFFF" />
+                      <Text style={styles.trendBadgeText}>{cafe.trend}</Text>
+                    </View>
                   </View>
-                </View>
-                <View style={styles.trendingInfo}>
-                  <Text style={[styles.trendingName, { color: colors.textPrimary }]}>{cafe.name}</Text>
-                  <Text style={[styles.trendingLocation, { color: colors.textSecondary }]}>{cafe.location}</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
+                  <View style={styles.trendingInfo}>
+                    <Text style={[styles.trendingName, { color: colors.textPrimary }]}>{cafe.name}</Text>
+                    <Text style={[styles.trendingLocation, { color: colors.textSecondary }]}>{cafe.location}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))
+            )}
           </ScrollView>
         </View>
 
@@ -285,6 +296,22 @@ const styles = StyleSheet.create({
   trendingScrollContent: {
     gap: 12,
     paddingRight: 24, // Add padding for last item
+  },
+  loadingContainer: {
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  loadingText: {
+    fontSize: Typography.body.fontSize,
+    color: Colors.stone500,
+  },
+  emptyContainer: {
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  emptyText: {
+    fontSize: Typography.body.fontSize,
+    color: Colors.stone500,
   },
   trendingCard: {
     width: 160,

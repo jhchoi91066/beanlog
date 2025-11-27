@@ -225,10 +225,20 @@ const FeedHomeScreen = ({ navigation }) => {
    * Transform Firebase review object to CoffeeCard post format
    */
   const transformReviewToPost = (review) => {
+    // Debug: Log review data to check if cafeName and coffeeName exist
+    if (!review.cafeName || !review.coffeeName) {
+      console.log('Missing cafe/coffee name in review:', {
+        id: review.id,
+        cafeName: review.cafeName,
+        coffeeName: review.coffeeName,
+        cafeId: review.cafeId
+      });
+    }
+
     return {
       id: review.id,
-      cafeName: review.cafeName || '카페',
-      coffeeName: review.coffeeName || '커피',
+      cafeName: review.cafeName || '카페 정보 없음',
+      coffeeName: review.coffeeName || '커피 정보 없음',
       location: review.cafeAddress || review.location || '',
       imageUrl: review.photoUrls && review.photoUrls.length > 0 ? review.photoUrls[0] : null,
       rating: review.rating || 0,

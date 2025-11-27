@@ -224,7 +224,10 @@ const AppNavigator = () => {
         <Stack.Screen
           name="CafeDetail"
           component={CafeDetailScreen}
-          options={{ headerShown: false }}
+          options={{
+            headerTitle: '',
+            headerBackTitle: '',
+          }}
         />
         <Stack.Screen
           name="CollectionDetail"
@@ -296,8 +299,8 @@ const AppNavigator = () => {
               component={CafeDetailScreen}
               options={{
                 headerShown: true,
-                headerTitle: '카페 상세',
-                headerBackTitle: '뒤로',
+                headerTitle: '',
+                headerBackTitle: '',
                 ...screenOptions
               }}
             />
@@ -330,8 +333,8 @@ const AppNavigator = () => {
               component={CafeDetailScreen}
               options={{
                 headerShown: true,
-                headerTitle: '카페 상세',
-                headerBackTitle: '뒤로',
+                headerTitle: '',
+                headerBackTitle: '',
                 ...screenOptions
               }}
             />
@@ -365,8 +368,8 @@ const AppNavigator = () => {
               component={CafeDetailScreen}
               options={{
                 headerShown: true,
-                headerTitle: '카페 상세',
-                headerBackTitle: '뒤로',
+                headerTitle: '',
+                headerBackTitle: '',
                 ...screenOptions
               }}
             />

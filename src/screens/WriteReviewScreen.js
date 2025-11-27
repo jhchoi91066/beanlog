@@ -250,10 +250,12 @@ const WriteReviewScreen = ({ navigation, route }) => {
       const reviewData = {
         userId: user.uid,
         cafeId: selectedCafe.id,
+        cafeName: selectedCafe.name, // Add cafe name for feed display
+        cafeAddress: selectedCafe.address || '', // Add cafe address for feed display
         rating: rating,
         basicTags: selectedBasicTags,
         comment: comment.trim() || null, // Optional field
-        coffeeName: coffeeName.trim() || null, // Coffee name field
+        coffeeName: coffeeName.trim() || '시그니처 커피', // Default to signature coffee if not specified
       };
 
       // Add advanced mode fields if enabled

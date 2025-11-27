@@ -10,6 +10,7 @@ import {
   Image,
   TouchableOpacity,
   Linking,
+  Alert,
 } from 'react-native';
 import PropTypes from 'prop-types';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,7 +19,6 @@ import { LoadingSpinner, EmptyState, Tag, StarRating } from '../components';
 import { useAuth } from '../contexts/AuthContext';
 import { getCafeById, toggleCafeBookmark } from '../services/cafeService';
 import { getReviewsByCafe } from '../services/reviewService';
-import { Alert } from 'react-native';
 
 const CafeDetailScreen = ({ route, navigation }) => {
   const { cafeId } = route.params;
@@ -169,6 +169,15 @@ const CafeDetailScreen = ({ route, navigation }) => {
 
     return (
       <View style={styles.cafeHeader}>
+        {/* Hero image - Cafe thumbnail */}
+        {cafe.thumbnailUrl && (
+          <Image
+            source={{ uri: cafe.thumbnailUrl }}
+            style={styles.heroImage}
+            resizeMode="cover"
+          />
+        )}
+
         {/* Cafe name */}
         <Text style={styles.cafeName}>{cafe.name}</Text>
 
@@ -306,6 +315,17 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.backgroundWhite,
     borderBottomWidth: 1,
     borderBottomColor: Colors.stone100,
+  },
+  heroImage: {
+    width: '100%',
+    height: 240,
+    borderRadius: 16,
+    backgroundColor: Colors.stone200,
+    marginBottom: 20,
+    marginHorizontal: -20, // Extend to screen edges
+    marginTop: -20,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
   },
   cafeName: {
     ...Typography.h1,
