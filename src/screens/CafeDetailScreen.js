@@ -14,14 +14,18 @@ import {
 } from 'react-native';
 import PropTypes from 'prop-types';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Typography } from '../constants';
-import { LoadingSpinner, EmptyState, Tag, StarRating } from '../components';
+import { LoadingSpinner, EmptyState, Tag, StarRating, MiniMap } from '../components';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { getCafeById, toggleCafeBookmark } from '../services/cafeService';
 import { getReviewsByCafe } from '../services/reviewService';
+import { searchNaverImages } from '../services/naverSearchService';
 
 const CafeDetailScreen = ({ route, navigation }) => {
   const { cafeId } = route.params;
+  const { colors } = useTheme();
 
   const [cafe, setCafe] = useState(null);
   const [reviews, setReviews] = useState([]);
@@ -43,7 +47,7 @@ const CafeDetailScreen = ({ route, navigation }) => {
           <Ionicons
             name={isBookmarked ? 'heart' : 'heart-outline'}
             size={24}
-            color={isBookmarked ? Colors.error : Colors.stone800}
+            color={isBookmarked ? Colors.error : colors.textPrimary}
           />
         </TouchableOpacity>
       ),
@@ -71,6 +75,30 @@ const CafeDetailScreen = ({ route, navigation }) => {
       if (user && cafeData) {
         const bookmarkedBy = cafeData.bookmarkedBy || [];
         setIsBookmarked(bookmarkedBy.includes(user.uid));
+      }
+
+      // v0.3: F-ENHANCED - Fetch image from Naver if missing
+      if (cafeData && !cafeData.thumbnailUrl) {
+        // Check if there are reviews with photos
+        const hasReviewPhotos = reviewsData.some(r => r.photoUrls && r.photoUrls.length > 0);
+
+        if (!hasReviewPhotos) {
+          // Try to fetch from Naver
+          try {
+            const naverImage = await searchNaverImages(cafeData.name);
+            if (naverImage) {
+              setCafe(prev => ({ ...prev, thumbnailUrl: naverImage }));
+            }
+          } catch (imgError) {
+            console.log('Failed to fetch Naver image:', imgError);
+          }
+        } else {
+          // Use the first review photo as thumbnail
+          const firstReviewWithPhoto = reviewsData.find(r => r.photoUrls && r.photoUrls.length > 0);
+          if (firstReviewWithPhoto) {
+            setCafe(prev => ({ ...prev, thumbnailUrl: firstReviewWithPhoto.photoUrls[0] }));
+          }
+        }
       }
     } catch (error) {
       // Firebase is not configured yet, so service calls will fail
@@ -108,9 +136,9 @@ const CafeDetailScreen = ({ route, navigation }) => {
    */
   const renderReviewItem = ({ item }) => {
     return (
-      <View style={styles.reviewItem}>
+      <View style={[styles.reviewItem, { backgroundColor: colors.backgroundWhite, borderColor: colors.stone200 }]}>
         {/* User display name */}
-        <Text style={styles.userName}>{item.displayName || '익명'}</Text>
+        <Text style={[styles.userName, { color: colors.textPrimary }]}>{item.displayName || '익명'}</Text>
 
         {/* Star rating */}
         <View style={styles.ratingContainer}>
@@ -128,7 +156,7 @@ const CafeDetailScreen = ({ route, navigation }) => {
             >
               <Image
                 source={{ uri: photoUrl }}
-                style={styles.photoThumbnail}
+                style={[styles.photoThumbnail, { backgroundColor: colors.stone200 }]}
                 resizeMode="cover"
               />
             </TouchableOpacity>
@@ -150,8 +178,9 @@ const CafeDetailScreen = ({ route, navigation }) => {
         )}
 
         {/* Comment (한 줄 코멘트) */}
+        {/* Comment (한 줄 코멘트) */}
         {item.comment && (
-          <Text style={styles.comment}>{item.comment}</Text>
+          <Text style={[styles.comment, { color: colors.stone600 }]}>{item.comment}</Text>
         )}
 
         {/* Divider */}
@@ -164,27 +193,38 @@ const CafeDetailScreen = ({ route, navigation }) => {
    * Render cafe header section
    * v0.2: F-ENHANCED - Added Instagram, parking, phone, closed days
    */
+  /**
+   * Render cafe header section
+   * v0.3: F-ENHANCED - Improved hero section and added MiniMap
+   */
   const renderCafeHeader = () => {
     if (!cafe) return null;
 
     return (
-      <View style={styles.cafeHeader}>
-        {/* Hero image - Cafe thumbnail */}
-        {cafe.thumbnailUrl && (
-          <Image
-            source={{ uri: cafe.thumbnailUrl }}
-            style={styles.heroImage}
-            resizeMode="cover"
-          />
-        )}
-
-        {/* Cafe name */}
-        <Text style={styles.cafeName}>{cafe.name}</Text>
-
-        {/* Address */}
-        {cafe.address && (
-          <Text style={styles.cafeAddress}>{cafe.address}</Text>
-        )}
+      <View style={[styles.cafeHeader, { backgroundColor: colors.backgroundWhite, borderBottomColor: colors.stone100 }]}>
+        {/* Hero image - Cafe thumbnail with Gradient Overlay */}
+        <View style={styles.heroContainer}>
+          {cafe.thumbnailUrl ? (
+            <Image
+              source={{ uri: cafe.thumbnailUrl }}
+              style={styles.heroImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[styles.heroImage, { backgroundColor: colors.stone200 }]} />
+          )}
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.7)']}
+            style={styles.heroGradient}
+          >
+            <Text style={styles.heroCafeName}>{cafe.name}</Text>
+            {cafe.address && (
+              <Text style={styles.heroCafeAddress} numberOfLines={1}>
+                {cafe.address}
+              </Text>
+            )}
+          </LinearGradient>
+        </View>
 
         {/* Location tags */}
         {cafe.locationTags && cafe.locationTags.length > 0 && (
@@ -200,8 +240,35 @@ const CafeDetailScreen = ({ route, navigation }) => {
           </View>
         )}
 
+        {/* MiniMap Section */}
+        <View style={styles.mapSection}>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>위치</Text>
+          <MiniMap
+            coordinate={(() => {
+              if (cafe.mapx && cafe.mapy) {
+                return {
+                  latitude: parseFloat(cafe.mapy) > 900 ? parseFloat(cafe.mapy) / 10000000 : parseFloat(cafe.mapy),
+                  longitude: parseFloat(cafe.mapx) > 200 ? parseFloat(cafe.mapx) / 10000000 : parseFloat(cafe.mapx)
+                };
+              } else if (cafe.coordinates) {
+                // Handle Firestore GeoPoint or object
+                const lat = cafe.coordinates.latitude || cafe.coordinates._lat;
+                const lng = cafe.coordinates.longitude || cafe.coordinates._long;
+                if (lat && lng) return { latitude: lat, longitude: lng };
+              } else if (cafe.latitude && cafe.longitude) {
+                return { latitude: cafe.latitude, longitude: cafe.longitude };
+              }
+              return null;
+            })()}
+            cafeName={cafe.name}
+            address={cafe.address}
+          />
+        </View>
+
         {/* v0.2: F-ENHANCED - Enhanced cafe information */}
         <View style={styles.enhancedInfoSection}>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>정보</Text>
+
           {/* Phone number */}
           {cafe.phoneNumber && (
             <TouchableOpacity
@@ -209,7 +276,7 @@ const CafeDetailScreen = ({ route, navigation }) => {
               onPress={() => Linking.openURL(`tel:${cafe.phoneNumber}`)}
             >
               <Ionicons name="call-outline" size={20} color={Colors.brand} />
-              <Text style={styles.infoText}>{cafe.phoneNumber}</Text>
+              <Text style={[styles.infoText, { color: colors.stone600 }]}>{cafe.phoneNumber}</Text>
             </TouchableOpacity>
           )}
 
@@ -223,7 +290,7 @@ const CafeDetailScreen = ({ route, navigation }) => {
               }}
             >
               <Ionicons name="logo-instagram" size={20} color={Colors.accent} />
-              <Text style={[styles.infoText, styles.instagramText]}>{cafe.instagramHandle}</Text>
+              <Text style={[styles.infoText, styles.instagramText, { color: Colors.amber600 }]}>{cafe.instagramHandle}</Text>
             </TouchableOpacity>
           )}
 
@@ -231,21 +298,21 @@ const CafeDetailScreen = ({ route, navigation }) => {
           {cafe.parkingInfo && (
             <View style={styles.infoRow}>
               <Ionicons name="car-outline" size={20} color={Colors.brand} />
-              <Text style={styles.infoText}>{cafe.parkingInfo}</Text>
+              <Text style={[styles.infoText, { color: colors.stone600 }]}>{cafe.parkingInfo}</Text>
             </View>
           )}
 
           {/* Closed days */}
           {cafe.closedDays && cafe.closedDays.length > 0 && (
             <View style={styles.infoRow}>
-              <Ionicons name="close-circle-outline" size={20} color={Colors.error} />
-              <Text style={styles.infoText}>휴무일: {cafe.closedDays.join(', ')}</Text>
+              <Ionicons name="time-outline" size={20} color={colors.stone400} />
+              <Text style={[styles.infoText, { color: colors.stone600 }]}>휴무일: {cafe.closedDays.join(', ')}</Text>
             </View>
           )}
         </View>
 
         {/* Section divider */}
-        <View style={styles.sectionDivider} />
+        <View style={[styles.sectionDivider, { backgroundColor: colors.stone100 }]} />
       </View>
     );
   };
@@ -255,8 +322,8 @@ const CafeDetailScreen = ({ route, navigation }) => {
    */
   const renderReviewsHeader = () => {
     return (
-      <View style={styles.reviewsHeader}>
-        <Text style={styles.reviewsTitle}>
+      <View style={[styles.reviewsHeader, { backgroundColor: colors.backgroundWhite }]}>
+        <Text style={[styles.reviewsTitle, { color: colors.textPrimary }]}>
           리뷰 {reviews.length > 0 ? `(${reviews.length})` : ''}
         </Text>
       </View>
@@ -271,14 +338,14 @@ const CafeDetailScreen = ({ route, navigation }) => {
   // Show error state if cafe data failed to load
   if (!cafe) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <EmptyState message="카페 정보를 불러올 수 없습니다" />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <FlatList
         data={reviews}
         renderItem={renderReviewItem}
@@ -290,7 +357,7 @@ const CafeDetailScreen = ({ route, navigation }) => {
           </>
         )}
         ListEmptyComponent={() => (
-          <View style={styles.emptyReviews}>
+          <View style={[styles.emptyReviews, { backgroundColor: colors.backgroundWhite }]}>
             <EmptyState message="아직 리뷰가 없습니다" />
           </View>
         )}
@@ -311,54 +378,75 @@ const styles = StyleSheet.create({
   },
   // Cafe header section
   cafeHeader: {
-    padding: 20,
+    paddingBottom: 20,
     backgroundColor: Colors.backgroundWhite,
     borderBottomWidth: 1,
     borderBottomColor: Colors.stone100,
   },
+  heroContainer: {
+    width: '100%',
+    height: 300,
+    marginBottom: 20,
+    position: 'relative',
+  },
   heroImage: {
     width: '100%',
-    height: 240,
-    borderRadius: 16,
-    backgroundColor: Colors.stone200,
-    marginBottom: 20,
-    marginHorizontal: -20, // Extend to screen edges
-    marginTop: -20,
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
+    height: '100%',
   },
-  cafeName: {
+  heroGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 120,
+    justifyContent: 'flex-end',
+    padding: 20,
+  },
+  heroCafeName: {
     ...Typography.h1,
-    color: Colors.stone800,
-    marginBottom: 8,
+    color: 'white',
+    marginBottom: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
-  cafeAddress: {
+  heroCafeAddress: {
     ...Typography.body,
-    color: Colors.stone600,
-    marginBottom: 12,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   locationTagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginTop: 8,
+    paddingHorizontal: 20,
+    marginBottom: 20,
     gap: 8,
   },
   locationTag: {
     marginRight: 0,
     marginBottom: 0,
   },
+  sectionTitle: {
+    ...Typography.h3,
+    color: Colors.stone800,
+    marginBottom: 12,
+  },
+  mapSection: {
+    paddingHorizontal: 20,
+    marginBottom: 24,
+  },
   // v0.2: F-ENHANCED - Enhanced info section
   enhancedInfoSection: {
-    marginTop: 20,
-    backgroundColor: Colors.stone50,
-    padding: 16,
-    borderRadius: 12,
+    paddingHorizontal: 20,
     gap: 12,
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    paddingVertical: 4,
   },
   infoText: {
     ...Typography.body,
@@ -372,8 +460,7 @@ const styles = StyleSheet.create({
   sectionDivider: {
     height: 8,
     backgroundColor: Colors.stone100,
-    marginTop: 20,
-    marginHorizontal: -20, // Extend to screen edges
+    marginTop: 24,
   },
   // Reviews section
   reviewsHeader: {
@@ -388,9 +475,20 @@ const styles = StyleSheet.create({
   },
   // Review item
   reviewItem: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    padding: 20,
     backgroundColor: Colors.backgroundWhite,
+    marginBottom: 12,
+    marginHorizontal: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.stone200,
+    // Shadow for iOS
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    // Elevation for Android
+    elevation: 2,
   },
   userName: {
     ...Typography.body,
@@ -409,9 +507,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   photoThumbnail: {
-    width: 100,
-    height: 100,
-    borderRadius: 12,
+    width: 80,
+    height: 80,
+    borderRadius: 8,
     backgroundColor: Colors.stone200,
   },
   tagsContainer: {
@@ -430,9 +528,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   reviewDivider: {
-    height: 1,
-    backgroundColor: Colors.stone200,
-    marginTop: 16,
+    display: 'none', // Hide divider since we use cards now
   },
   // Empty reviews state
   emptyReviews: {

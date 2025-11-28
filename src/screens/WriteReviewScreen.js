@@ -24,10 +24,12 @@ import CustomButton from '../components/CustomButton';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Slider from '../components/Slider';
 import FlavorRadar from '../components/FlavorRadar';
+import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { createReview, updateReview } from '../services/reviewService';
-import { getAllCafes } from '../services/cafeService';
+import { getAllCafes, createCafe } from '../services/cafeService';
 import { uploadMultipleReviewImages } from '../services/imageService';
+import { searchNaverPlaces } from '../services/naverSearchService';
 
 // F-2.2: Basic Mode - Taste Tags
 const BASIC_TAGS = ['상큼한', '고소한', '달콤한', '묵직한', '부드러운', '꽃향기'];
@@ -39,6 +41,7 @@ const ADVANCED_TAGS = ['시트러스', '초콜릿', '견과류', '베리', '플�
 const ROASTING_LEVELS = ['Light', 'Medium', 'Dark'];
 
 const WriteReviewScreen = ({ navigation, route }) => {
+  const { colors } = useTheme();
   const { user } = useAuth();
 
   // F-2.1: Cafe Selection State
@@ -46,6 +49,11 @@ const WriteReviewScreen = ({ navigation, route }) => {
   const [selectedCafe, setSelectedCafe] = useState(null);
   const [showCafeSelector, setShowCafeSelector] = useState(false);
   const [loadingCafes, setLoadingCafes] = useState(false);
+
+  // Search State
+  const [searchText, setSearchText] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   // Coffee Name State
   const [coffeeName, setCoffeeName] = useState('');
@@ -148,6 +156,45 @@ const WriteReviewScreen = ({ navigation, route }) => {
   };
 
   /**
+   * Handle cafe search
+   */
+  const handleSearch = async (text) => {
+    setSearchText(text);
+
+    if (!text || text.trim().length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const lowerText = text.toLowerCase().trim();
+
+      // 1. Search in existing app cafes
+      const localResults = cafes.filter(cafe =>
+        cafe.name.toLowerCase().includes(lowerText) ||
+        (cafe.address && cafe.address.toLowerCase().includes(lowerText))
+      );
+
+      // 2. Search via Naver API
+      const naverResults = await searchNaverPlaces(text);
+
+      // 3. Combine results (prioritize local results)
+      // Filter out Naver results that might be duplicates of local results (simple name check)
+      const uniqueNaverResults = naverResults.filter(nResult =>
+        !localResults.some(lResult => lResult.name === nResult.name)
+      );
+
+      setSearchResults([...localResults, ...uniqueNaverResults]);
+    } catch (error) {
+      console.error('Error searching cafes:', error);
+      Alert.alert('오류', '카페 검색 중 문제가 발생했습니다.');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  /**
    * v0.2: F-PHOTO - Request camera/library permissions
    */
   const requestPermissions = async () => {
@@ -246,12 +293,48 @@ const WriteReviewScreen = ({ navigation, route }) => {
     try {
       setSubmitting(true);
 
+      let finalCafeId = selectedCafe.id;
+      let finalCafeName = selectedCafe.name;
+      let finalCafeAddress = selectedCafe.address || '';
+
+      // If selected cafe is from Naver, create it in Firestore first
+      if (selectedCafe.isNaverResult) {
+        try {
+          const newCafeData = {
+            name: selectedCafe.name,
+            address: selectedCafe.address,
+            location: selectedCafe.address, // Compatibility
+            description: selectedCafe.description || '',
+            telephone: selectedCafe.telephone || '',
+            mapx: selectedCafe.mapx,
+            mapy: selectedCafe.mapy,
+            naverLink: selectedCafe.link || '',
+            createdAt: new Date(),
+            source: 'naver_search',
+          };
+
+          // Create cafe and get new ID
+          // Note: createCafe needs to be imported from cafeService
+          // We need to ensure createCafe returns the new ID
+          const newCafeId = await createCafe(newCafeData);
+          finalCafeId = newCafeId;
+
+          // Update selected cafe with real ID to prevent re-creation if user edits review immediately
+          setSelectedCafe({ ...selectedCafe, id: newCafeId, isNaverResult: false });
+        } catch (cafeError) {
+          console.error('Error creating new cafe from Naver result:', cafeError);
+          Alert.alert('오류', '새로운 카페 정보를 저장하는데 실패했습니다.');
+          setSubmitting(false);
+          return;
+        }
+      }
+
       // Prepare review data
       const reviewData = {
         userId: user.uid,
-        cafeId: selectedCafe.id,
-        cafeName: selectedCafe.name, // Add cafe name for feed display
-        cafeAddress: selectedCafe.address || '', // Add cafe address for feed display
+        cafeId: finalCafeId,
+        cafeName: finalCafeName, // Add cafe name for feed display
+        cafeAddress: finalCafeAddress, // Add cafe address for feed display
         rating: rating,
         basicTags: selectedBasicTags,
         comment: comment.trim() || null, // Optional field
@@ -389,29 +472,72 @@ const WriteReviewScreen = ({ navigation, route }) => {
       onRequestClose={() => setShowCafeSelector(false)}
     >
       <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>카페 선택</Text>
+        <View style={[styles.modalContent, { backgroundColor: colors.backgroundWhite }]}>
+          <View style={[styles.modalHeader, { borderBottomColor: colors.stone200 }]}>
+            <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>카페 선택</Text>
             <TouchableOpacity onPress={() => setShowCafeSelector(false)}>
-              <Text style={styles.modalCloseButton}>닫기</Text>
+              <Text style={[styles.modalCloseButton, { color: colors.textSecondary }]}>닫기</Text>
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.cafeList}>
-            {cafes.map((cafe) => (
-              <TouchableOpacity
-                key={cafe.id}
-                style={styles.cafeItem}
-                onPress={() => {
-                  setSelectedCafe(cafe);
-                  setShowCafeSelector(false);
-                  setValidationError('');
-                }}
-              >
-                <Text style={styles.cafeName}>{cafe.name}</Text>
-                <Text style={styles.cafeLocation}>{cafe.location}</Text>
+          {/* Search Input */}
+          <View style={[styles.searchContainer, { backgroundColor: colors.background, borderColor: colors.stone200 }]}>
+            <Ionicons name="search" size={20} color={colors.stone400} style={styles.searchIcon} />
+            <TextInput
+              style={[styles.searchInput, { color: colors.textPrimary }]}
+              placeholder="카페 이름으로 검색 (네이버 검색 포함)"
+              placeholderTextColor={colors.stone400}
+              value={searchText}
+              onChangeText={handleSearch}
+              autoFocus={true}
+            />
+            {searchText.length > 0 && (
+              <TouchableOpacity onPress={() => handleSearch('')}>
+                <Ionicons name="close-circle" size={16} color={colors.stone400} />
               </TouchableOpacity>
-            ))}
+            )}
+          </View>
+
+          <ScrollView style={styles.cafeList}>
+            {isSearching ? (
+              <View style={styles.loadingContainer}>
+                <LoadingSpinner visible={true} fullScreen={false} />
+              </View>
+            ) : (
+              <>
+                {/* Show search results if searching, otherwise show all cafes */}
+                {(searchText ? searchResults : cafes).map((cafe) => (
+                  <TouchableOpacity
+                    key={cafe.id}
+                    style={styles.cafeItem}
+                    onPress={() => {
+                      setSelectedCafe(cafe);
+                      setShowCafeSelector(false);
+                      setValidationError('');
+                      setSearchText(''); // Reset search
+                      setSearchResults([]);
+                    }}
+                  >
+                    <View style={styles.cafeInfoContainer}>
+                      <Text style={[styles.cafeName, { color: colors.textPrimary }]}>{cafe.name}</Text>
+                      <Text style={[styles.cafeLocation, { color: colors.textSecondary }]}>{cafe.address || cafe.location}</Text>
+                      {cafe.isNaverResult && (
+                        <View style={styles.naverBadge}>
+                          <Text style={styles.naverBadgeText}>NAVER</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={Colors.stone300} />
+                  </TouchableOpacity>
+                ))}
+
+                {searchText && searchResults.length === 0 && (
+                  <View style={styles.emptySearch}>
+                    <Text style={[styles.emptySearchText, { color: colors.textSecondary }]}>검색 결과가 없습니다.</Text>
+                  </View>
+                )}
+              </>
+            )}
           </ScrollView>
         </View>
       </View>
@@ -420,7 +546,7 @@ const WriteReviewScreen = ({ navigation, route }) => {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
@@ -431,15 +557,16 @@ const WriteReviewScreen = ({ navigation, route }) => {
       >
         {/* F-2.1: Cafe Selection */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>카페 선택</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>카페 선택</Text>
           <TouchableOpacity
-            style={styles.cafeSelector}
+            style={[styles.cafeSelector, { backgroundColor: colors.backgroundWhite, borderColor: colors.stone200 }]}
             onPress={() => setShowCafeSelector(true)}
           >
             <Text
               style={[
                 styles.cafeSelectorText,
-                !selectedCafe && styles.cafeSelectorPlaceholder,
+                !selectedCafe && { color: colors.textSecondary },
+                selectedCafe && { color: colors.textPrimary }
               ]}
             >
               {selectedCafe ? selectedCafe.name : '카페를 선택해주세요'}
@@ -449,11 +576,11 @@ const WriteReviewScreen = ({ navigation, route }) => {
 
         {/* Coffee Name Input */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>커피 이름 (선택)</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>커피 이름 (선택)</Text>
           <TextInput
-            style={styles.coffeeNameInput}
+            style={[styles.coffeeNameInput, { backgroundColor: colors.backgroundWhite, color: colors.textPrimary, borderColor: colors.stone200 }]}
             placeholder="예: 아메리카노, 카페라떼, 플랫화이트"
-            placeholderTextColor={Colors.textSecondary}
+            placeholderTextColor={colors.textSecondary}
             value={coffeeName}
             onChangeText={setCoffeeName}
             maxLength={50}
@@ -462,7 +589,7 @@ const WriteReviewScreen = ({ navigation, route }) => {
 
         {/* F-2.2: Basic Mode - Rating */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
             전체 평점 <Text style={styles.required}>*</Text>
           </Text>
           <StarRating
@@ -478,10 +605,10 @@ const WriteReviewScreen = ({ navigation, route }) => {
 
         {/* F-2.2: Basic Mode - Taste Tags */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
             맛 태그 <Text style={styles.required}>*</Text>
           </Text>
-          <Text style={styles.sectionSubtitle}>최소 1개 이상 선택</Text>
+          <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>최소 1개 이상 선택</Text>
           <View style={styles.tagsContainer}>
             {BASIC_TAGS.map((tag) => (
               <Tag
@@ -496,26 +623,26 @@ const WriteReviewScreen = ({ navigation, route }) => {
 
         {/* F-2.2: Basic Mode - Comment */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>나만의 기록 (선택)</Text>
-          <Text style={styles.sectionSubtitle}>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>나만의 기록 (선택)</Text>
+          <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
             커피의 맛과 향, 카페의 분위기는 어땠나요?
           </Text>
           <TextInput
-            style={styles.commentInput}
+            style={[styles.commentInput, { backgroundColor: colors.backgroundWhite, color: colors.textPrimary, borderColor: colors.stone200 }]}
             placeholder="이 카페에 대한 한 줄 평을 남겨주세요 (최대 100자)"
-            placeholderTextColor={Colors.textSecondary}
+            placeholderTextColor={colors.textSecondary}
             value={comment}
             onChangeText={setComment}
             maxLength={100}
             multiline
           />
-          <Text style={styles.characterCount}>{comment.length}/100</Text>
+          <Text style={[styles.characterCount, { color: colors.textSecondary }]}>{comment.length}/100</Text>
         </View>
 
         {/* v0.2: F-PHOTO - Photo Upload Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>사진 (선택)</Text>
-          <Text style={styles.sectionSubtitle}>최대 3장까지 업로드 가능</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>사진 (선택)</Text>
+          <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>최대 3장까지 업로드 가능</Text>
 
           <View style={styles.photosContainer}>
             {/* Selected Photos */}
@@ -534,11 +661,11 @@ const WriteReviewScreen = ({ navigation, route }) => {
             {/* Add Photo Button */}
             {selectedPhotos.length < 3 && (
               <TouchableOpacity
-                style={styles.photoAddButton}
+                style={[styles.photoAddButton, { backgroundColor: colors.backgroundWhite, borderColor: colors.stone200 }]}
                 onPress={pickPhotos}
               >
-                <Ionicons name="camera" size={32} color={Colors.textSecondary} />
-                <Text style={styles.photoAddText}>사진 추가</Text>
+                <Ionicons name="camera" size={32} color={colors.textSecondary} />
+                <Text style={[styles.photoAddText, { color: colors.textSecondary }]}>사진 추가</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -556,7 +683,7 @@ const WriteReviewScreen = ({ navigation, route }) => {
                 size={20}
                 color={Colors.amber600}
               />
-              <Text style={styles.advancedToggleText}>
+              <Text style={[styles.advancedToggleText, { color: colors.textPrimary }]}>
                 {showAdvancedMode ? '상세 리뷰 숨기기' : '상세 리뷰 남기기'}
               </Text>
             </View>
@@ -567,8 +694,8 @@ const WriteReviewScreen = ({ navigation, route }) => {
         {showAdvancedMode && (
           <View style={styles.advancedSection}>
             <View style={styles.advancedHeader}>
-              <Text style={styles.advancedTitle}>맛 그래프</Text>
-              <Text style={styles.advancedSubtitle}>
+              <Text style={[styles.advancedTitle, { color: colors.textPrimary }]}>맛 그래프</Text>
+              <Text style={[styles.advancedSubtitle, { color: colors.textSecondary }]}>
                 상세한 맛 평가를 남겨주세요
               </Text>
             </View>
@@ -661,7 +788,7 @@ const WriteReviewScreen = ({ navigation, route }) => {
 
             {/* Advanced Flavor Tags */}
             <View style={styles.advancedTagsSection}>
-              <Text style={styles.advancedSectionLabel}>상세 향 (선택)</Text>
+              <Text style={[styles.advancedSectionLabel, { color: colors.textPrimary }]}>상세 향 (선택)</Text>
               <View style={styles.tagsContainer}>
                 {ADVANCED_TAGS.map((tag) => (
                   <Tag
@@ -676,13 +803,14 @@ const WriteReviewScreen = ({ navigation, route }) => {
 
             {/* Roasting Level */}
             <View style={styles.advancedTagsSection}>
-              <Text style={styles.advancedSectionLabel}>로스팅 (선택)</Text>
+              <Text style={[styles.advancedSectionLabel, { color: colors.textPrimary }]}>로스팅 (선택)</Text>
               <View style={styles.roastingContainer}>
                 {ROASTING_LEVELS.map((level) => (
                   <TouchableOpacity
                     key={level}
                     style={[
                       styles.roastingButton,
+                      { backgroundColor: colors.backgroundWhite, borderColor: colors.stone200 },
                       roasting === level && styles.roastingButtonSelected,
                     ]}
                     onPress={() => setRoasting(roasting === level ? null : level)}
@@ -690,6 +818,7 @@ const WriteReviewScreen = ({ navigation, route }) => {
                     <Text
                       style={[
                         styles.roastingButtonText,
+                        { color: colors.textSecondary },
                         roasting === level && styles.roastingButtonTextSelected,
                       ]}
                     >
@@ -796,6 +925,105 @@ const styles = StyleSheet.create({
     ...Typography.body,
     color: Colors.stone800,
     backgroundColor: Colors.backgroundWhite,
+  },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: Colors.backgroundWhite,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    height: '80%',
+    paddingTop: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  modalTitle: {
+    ...Typography.h3,
+    color: Colors.stone800,
+  },
+  modalCloseButton: {
+    ...Typography.body,
+    color: Colors.stone500,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.stone100,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    height: 48,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    ...Typography.body,
+    color: Colors.stone800,
+    height: '100%',
+  },
+  cafeList: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  cafeItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.stone100,
+  },
+  cafeInfoContainer: {
+    flex: 1,
+    marginRight: 12,
+  },
+  cafeName: {
+    ...Typography.body,
+    fontWeight: '600',
+    color: Colors.stone800,
+    marginBottom: 4,
+  },
+  cafeLocation: {
+    ...Typography.caption,
+    color: Colors.stone500,
+  },
+  naverBadge: {
+    backgroundColor: '#03C75A', // Naver Green
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  naverBadgeText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  loadingContainer: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  emptySearch: {
+    paddingVertical: 40,
+    alignItems: 'center',
+  },
+  emptySearchText: {
+    ...Typography.body,
+    color: Colors.stone400,
   },
 
   // Comment Input - Enhanced design from CreatePost

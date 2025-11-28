@@ -97,6 +97,8 @@ export const createReview = async (reviewData) => {
       ...reviewData,
       userDisplayName: currentUser?.displayName || '익명',
       userPhotoURL: currentUser?.photoURL || null,
+      likes: 0,
+      comments: 0,
       createdAt: serverTimestamp()
     };
 

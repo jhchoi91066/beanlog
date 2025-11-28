@@ -346,8 +346,8 @@ const MyPageScreen = ({ navigation }) => {
         level: 'Barista',
       },
       description: review.comment || '',
-      likes: 0, // TODO: Implement likes in future version
-      comments: 0, // TODO: Implement comments in future version
+      likes: review.likes || 0,
+      comments: review.comments || 0,
       date: formatDateRelative(review.createdAt),
       // Additional fields for edit/delete
       reviewId: review.id,

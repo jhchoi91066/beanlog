@@ -17,6 +17,8 @@ import Colors from '../constants/colors';
 import Typography from '../constants/typography';
 import { useAuth } from '../contexts/AuthContext';
 import { updateUser } from '../services/userService';
+import { uploadProfileImage, compressImage } from '../services/imageService';
+import * as ImagePicker from 'expo-image-picker';
 
 const ProfileEditScreen = ({ navigation }) => {
     const [nickname, setNickname] = useState('커피러버');
@@ -24,16 +26,53 @@ const ProfileEditScreen = ({ navigation }) => {
 
     const { user } = useAuth();
     const [loading, setLoading] = useState(false);
+    const [selectedImage, setSelectedImage] = useState(null);
+
+    const handlePickImage = async () => {
+        console.log('handlePickImage called');
+        try {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            console.log('Permission status:', status);
+
+            if (status !== 'granted') {
+                Alert.alert('권한 필요', '사진 라이브러리 접근 권한이 필요합니다.');
+                return;
+            }
+
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 1,
+            });
+
+            console.log('ImagePicker result:', result.canceled ? 'canceled' : 'picked');
+
+            if (!result.canceled) {
+                setSelectedImage(result.assets[0].uri);
+            }
+        } catch (error) {
+            console.error('Error picking image:', error);
+            Alert.alert('오류', '이미지를 선택하는 중 문제가 발생했습니다.');
+        }
+    };
 
     const handleSave = async () => {
         if (!user) return;
 
         try {
             setLoading(true);
+
+            let photoURL = user.photoURL;
+            if (selectedImage) {
+                const compressedUri = await compressImage(selectedImage);
+                photoURL = await uploadProfileImage(compressedUri, user.uid);
+            }
+
             await updateUser(user.uid, {
                 displayName: nickname,
-                bio: bio, // Note: 'bio' field needs to be supported in userService/Firestore schema
-                photoURL: 'https://i.pravatar.cc/150?u=me', // TODO: Implement real photo upload
+                bio: bio,
+                photoURL: photoURL,
             });
 
             Alert.alert('성공', '프로필이 저장되었습니다.', [
@@ -82,15 +121,19 @@ const ProfileEditScreen = ({ navigation }) => {
                 >
                     {/* Avatar Section */}
                     <View style={styles.avatarSection}>
-                        <View style={styles.avatarContainer}>
+                        <TouchableOpacity
+                            style={styles.avatarContainer}
+                            onPress={handlePickImage}
+                            activeOpacity={0.8}
+                        >
                             <Image
-                                source={{ uri: 'https://i.pravatar.cc/150?u=me' }}
+                                source={{ uri: selectedImage || user?.photoURL || 'https://i.pravatar.cc/150?u=me' }}
                                 style={styles.avatar}
                             />
-                            <TouchableOpacity style={styles.cameraButton} activeOpacity={0.8}>
+                            <View style={styles.cameraButton}>
                                 <Ionicons name="camera" size={16} color="#FFF" />
-                            </TouchableOpacity>
-                        </View>
+                            </View>
+                        </TouchableOpacity>
                         <Text style={styles.changePhotoText}>프로필 사진 변경</Text>
                     </View>
 

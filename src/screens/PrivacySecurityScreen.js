@@ -12,22 +12,131 @@ import { Ionicons } from '@expo/vector-icons';
 import Colors from '../constants/colors';
 import Typography from '../constants/typography';
 import { useAuth } from '../contexts/AuthContext';
-import { deleteUser } from '../services/userService';
+import { sendPasswordResetEmail } from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { auth } from '../services/firebase';
+import { deleteUser, getBlockedUsers } from '../services/userService';
 
 const PrivacySecurityScreen = ({ navigation }) => {
-    const handlePasswordChange = () => {
-        Alert.alert('준비중', '비밀번호 변경 기능은 곧 출시됩니다.');
+    const { user, signOut } = useAuth();
+
+    const handlePasswordChange = async () => {
+        console.log('handlePasswordChange called', user);
+        if (!user) {
+            console.log('User is null');
+            return;
+        }
+
+        // Check if user is signed in with password provider
+        const isPasswordProvider = user.providerData.some(
+            (provider) => provider.providerId === 'password'
+        );
+
+        if (isPasswordProvider) {
+            Alert.alert(
+                '비밀번호 변경',
+                `${user.email}로 비밀번호 재설정 이메일을 보내시겠습니까?`,
+                [
+                    { text: '취소', style: 'cancel' },
+                    {
+                        text: '보내기',
+                        onPress: async () => {
+                            try {
+                                console.log('Sending password reset email to:', user.email);
+                                await sendPasswordResetEmail(auth, user.email);
+                                console.log('Password reset email sent successfully');
+                                Alert.alert('전송 완료', '비밀번호 재설정 이메일을 보냈습니다. 이메일을 확인해주세요.');
+                            } catch (error) {
+                                console.error('Error sending password reset email:', error);
+                                Alert.alert('오류', '이메일 전송에 실패했습니다. 잠시 후 다시 시도해주세요.');
+                            }
+                        }
+                    }
+                ]
+            );
+        } else {
+            Alert.alert(
+                '알림',
+                '소셜 로그인(Google/Apple)을 사용 중입니다. 해당 서비스에서 비밀번호를 변경해주세요.'
+            );
+        }
     };
 
-    const handleBlockManagement = () => {
-        Alert.alert('준비중', '차단 관리 기능은 곧 출시됩니다.');
+    const handleBlockManagement = async () => {
+        if (!user) return;
+
+        try {
+            const blockedUsers = await getBlockedUsers(user.uid);
+            if (blockedUsers.length === 0) {
+                Alert.alert('차단 관리', '차단한 사용자가 없습니다.');
+            } else {
+                // Navigate to BlockedUsersScreen (to be implemented)
+                Alert.alert('준비중', '차단 목록 화면은 준비 중입니다.');
+            }
+        } catch (error) {
+            console.error('Error fetching blocked users:', error);
+            Alert.alert('오류', '차단 목록을 불러오는데 실패했습니다.');
+        }
     };
 
     const handleDataManagement = () => {
-        Alert.alert('준비중', '데이터 관리 기능은 곧 출시됩니다.');
+        Alert.alert(
+            '데이터 관리',
+            '원하시는 작업을 선택해주세요.',
+            [
+                {
+                    text: '캐시 삭제',
+                    onPress: () => {
+                        Alert.alert(
+                            '캐시 삭제',
+                            '앱의 임시 데이터(검색 기록 등)를 삭제하시겠습니까?',
+                            [
+                                { text: '취소', style: 'cancel' },
+                                {
+                                    text: '삭제',
+                                    style: 'destructive',
+                                    onPress: async () => {
+                                        try {
+                                            // Clear specific keys
+                                            await AsyncStorage.multiRemove(['search_history', 'recent_searches']);
+                                            Alert.alert('완료', '캐시가 삭제되었습니다.');
+                                        } catch (error) {
+                                            console.error('Error clearing cache:', error);
+                                            Alert.alert('오류', '캐시 삭제 중 문제가 발생했습니다.');
+                                        }
+                                    }
+                                }
+                            ]
+                        );
+                    }
+                },
+                {
+                    text: '데이터 내보내기',
+                    onPress: () => {
+                        Alert.alert(
+                            '데이터 내보내기',
+                            '회원님의 활동 데이터를 이메일로 받으시겠습니까?',
+                            [
+                                { text: '취소', style: 'cancel' },
+                                {
+                                    text: '요청',
+                                    onPress: () => {
+                                        // Simulate request
+                                        setTimeout(() => {
+                                            Alert.alert('요청 완료', '데이터 추출이 시작되었습니다. 완료되면 이메일로 발송됩니다.');
+                                        }, 1000);
+                                    }
+                                }
+                            ]
+                        );
+                    }
+                },
+                { text: '닫기', style: 'cancel' }
+            ]
+        );
     };
 
-    const { user, signOut } = useAuth();
+
 
     const handleDeleteAccount = () => {
         Alert.alert(

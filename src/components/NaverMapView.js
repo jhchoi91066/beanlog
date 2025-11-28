@@ -12,7 +12,8 @@ const NaverMapView = ({
   onMarkerPress,
   initialRegion,
   userLocation,
-  style
+  style,
+  interactive = true // New prop to control map interaction
 }) => {
   console.log('NaverMapView rendered with:', { userLocation, initialRegion });
   const webViewRef = useRef(null);
@@ -58,7 +59,14 @@ const NaverMapView = ({
             scaleControl: false,
             logoControl: false,
             mapDataControl: false,
-            zoomControl: true,
+            zoomControl: ${interactive},
+            draggable: ${interactive},
+            pinchZoom: ${interactive},
+            scrollWheel: ${interactive},
+            keyboardShortcuts: ${interactive},
+            disableDoubleTapZoom: ${!interactive},
+            disableDoubleClickZoom: ${!interactive},
+            disableTwoFingerTapZoom: ${!interactive},
             zoomControlOptions: {
                 position: naver.maps.Position.TOP_RIGHT
             }
@@ -141,7 +149,7 @@ const NaverMapView = ({
 </body>
 </html>
     `;
-  }, []);
+  }, [interactive]);
 
   // Handle messages from WebView
   const handleMessage = (event) => {
@@ -249,6 +257,7 @@ NaverMapView.propTypes = {
     longitude: PropTypes.number,
   }),
   style: PropTypes.object,
+  interactive: PropTypes.bool,
 };
 
 NaverMapView.defaultProps = {
@@ -260,6 +269,7 @@ NaverMapView.defaultProps = {
   },
   userLocation: null,
   style: {},
+  interactive: true,
 };
 
 const styles = StyleSheet.create({

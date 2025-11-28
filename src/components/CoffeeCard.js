@@ -18,11 +18,14 @@ import Colors from '../constants/colors';
 import Typography from '../constants/typography';
 import FlavorRadar from './FlavorRadar';
 import Tag from './Tag';
+import { searchNaverImages } from '../services/naverSearchService';
+import { useTheme } from '../contexts/ThemeContext';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = width - 32; // 16px padding on each side
 
 const CoffeeCard = ({ post, onPress, index = 0 }) => {
+  const { colors } = useTheme();
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current; // Initial opacity: 0
   const slideAnim = useRef(new Animated.Value(20)).current; // Initial y: 20
@@ -39,6 +42,42 @@ const CoffeeCard = ({ post, onPress, index = 0 }) => {
 
   // Share button animation
   const shareScaleAnim = useRef(new Animated.Value(1)).current;
+
+  // Image state
+  const [displayImage, setDisplayImage] = useState(post.imageUrl);
+
+  // Fetch image from Naver if missing
+  useEffect(() => {
+    const fetchImage = async () => {
+      // console.log(`[CoffeeCard] Checking image for ${post.cafeName}:`, { imageUrl: post.imageUrl });
+      if (!post.imageUrl && post.cafeName) {
+        try {
+          // console.log(`[CoffeeCard] Fetching Naver image for ${post.cafeName}...`);
+          const imageUrl = await searchNaverImages(post.cafeName);
+          // console.log(`[CoffeeCard] Naver images result for ${post.cafeName}:`, imageUrl);
+
+          if (imageUrl) {
+            // Upgrade HTTP to HTTPS to avoid iOS ATS issues
+            const secureImageUrl = imageUrl.replace(/^http:\/\//i, 'https://');
+            console.log(`[CoffeeCard] Setting image to: ${secureImageUrl}`);
+            setDisplayImage(secureImageUrl);
+          } else {
+            // Fallback image
+            // console.log('[CoffeeCard] No Naver images found, using fallback');
+            setDisplayImage('https://images.unsplash.com/photo-1497935586351-b67a49e012bf?q=80&w=1000&auto=format&fit=crop');
+          }
+        } catch (error) {
+          console.error('Error fetching Naver image for card:', error);
+          setDisplayImage('https://images.unsplash.com/photo-1497935586351-b67a49e012bf?q=80&w=1000&auto=format&fit=crop');
+        }
+      } else if (!post.imageUrl) {
+        // console.log('[CoffeeCard] No cafe name, using fallback');
+        setDisplayImage('https://images.unsplash.com/photo-1497935586351-b67a49e012bf?q=80&w=1000&auto=format&fit=crop');
+      }
+    };
+
+    fetchImage();
+  }, [post.imageUrl, post.cafeName]);
 
   // Mount animation with stagger effect based on index
   useEffect(() => {
@@ -163,7 +202,7 @@ const CoffeeCard = ({ post, onPress, index = 0 }) => {
   // Interpolate like button color from gray to red
   const likeIconColor = likeColorAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [Colors.textTertiary, Colors.red500],
+    outputRange: [colors.textTertiary, Colors.red500],
   });
 
   return (
@@ -180,16 +219,16 @@ const CoffeeCard = ({ post, onPress, index = 0 }) => {
       ]}
     >
       <Pressable
-        style={styles.card}
+        style={[styles.card, { backgroundColor: colors.backgroundWhite }]}
         onPress={onPress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
-        android_ripple={{ color: Colors.stone100 }}
+        android_ripple={{ color: colors.stone100 }}
       >
         {/* Image Section */}
         <View style={styles.imageContainer}>
           <Animated.Image
-            source={{ uri: post.imageUrl || 'https://images.unsplash.com/photo-1497935586351-b67a49e012bf?q=80&w=1000&auto=format&fit=crop' }}
+            source={{ uri: displayImage || 'https://images.unsplash.com/photo-1497935586351-b67a49e012bf?q=80&w=1000&auto=format&fit=crop' }}
             style={[
               styles.image,
               {
@@ -197,6 +236,10 @@ const CoffeeCard = ({ post, onPress, index = 0 }) => {
               },
             ]}
             resizeMode="cover"
+            onError={(e) => {
+              console.log('[CoffeeCard] Image load error:', e.nativeEvent.error);
+              setDisplayImage('https://images.unsplash.com/photo-1497935586351-b67a49e012bf?q=80&w=1000&auto=format&fit=crop');
+            }}
           />
           {/* Rating Badge */}
           <View style={styles.ratingBadge}>
@@ -208,14 +251,14 @@ const CoffeeCard = ({ post, onPress, index = 0 }) => {
         {/* Header Section */}
         <View style={styles.header}>
           <View style={styles.titleContainer}>
-            <Text style={styles.coffeeName}>{post.coffeeName}</Text>
+            <Text style={[styles.coffeeName, { color: colors.stone800 }]}>{post.coffeeName}</Text>
             <View style={styles.locationContainer}>
               <Ionicons
                 name="location-outline"
                 size={12}
-                color={Colors.textSecondary}
+                color={colors.textSecondary}
               />
-              <Text style={styles.cafeName}>{post.cafeName}</Text>
+              <Text style={[styles.cafeName, { color: colors.textSecondary }]}>{post.cafeName}</Text>
             </View>
           </View>
           <Animated.View style={{ transform: [{ scale: shareScaleAnim }] }}>
@@ -228,7 +271,7 @@ const CoffeeCard = ({ post, onPress, index = 0 }) => {
               <Ionicons
                 name="share-social-outline"
                 size={18}
-                color={Colors.textTertiary}
+                color={colors.textTertiary}
               />
             </TouchableOpacity>
           </Animated.View>
@@ -237,12 +280,12 @@ const CoffeeCard = ({ post, onPress, index = 0 }) => {
         {/* Content Section */}
         <View style={styles.content}>
           {/* Description */}
-          <Text style={styles.description} numberOfLines={2}>
+          <Text style={[styles.description, { color: colors.stone600 }]} numberOfLines={2}>
             {post.description}
           </Text>
 
           {/* Flavor Profile - Updated to use FlavorRadar */}
-          <View style={styles.flavorContainer}>
+          <View style={[styles.flavorContainer, { backgroundColor: colors.stone50 }]}>
             <View style={styles.radarContainer}>
               <FlavorRadar
                 data={[
@@ -271,7 +314,7 @@ const CoffeeCard = ({ post, onPress, index = 0 }) => {
         </View>
 
         {/* Footer Section */}
-        <View style={styles.footer}>
+        <View style={[styles.footer, { borderTopColor: colors.stone100 }]}>
           {/* Author Info */}
           <View style={styles.authorContainer}>
             <View style={styles.avatar}>
@@ -281,14 +324,14 @@ const CoffeeCard = ({ post, onPress, index = 0 }) => {
                   style={styles.avatarImage}
                 />
               ) : (
-                <View style={styles.avatarFallback}>
-                  <Text style={styles.avatarText}>
+                <View style={[styles.avatarFallback, { backgroundColor: colors.stone300 }]}>
+                  <Text style={[styles.avatarText, { color: colors.backgroundWhite }]}>
                     {post.author.name.charAt(0)}
                   </Text>
                 </View>
               )}
             </View>
-            <Text style={styles.authorName}>{post.author.name}</Text>
+            <Text style={[styles.authorName, { color: colors.stone600 }]}>{post.author.name}</Text>
           </View>
 
           {/* Interactions */}
@@ -303,9 +346,9 @@ const CoffeeCard = ({ post, onPress, index = 0 }) => {
                 <Ionicons
                   name={isLiked ? 'heart' : 'heart-outline'}
                   size={16}
-                  color={isLiked ? Colors.red500 : Colors.textTertiary}
+                  color={isLiked ? Colors.red500 : colors.textTertiary}
                 />
-                <Text style={styles.interactionText}>{post.likes}</Text>
+                <Text style={[styles.interactionText, { color: colors.textTertiary }]}>{post.likes}</Text>
               </TouchableOpacity>
             </Animated.View>
 
@@ -320,9 +363,9 @@ const CoffeeCard = ({ post, onPress, index = 0 }) => {
                 <Ionicons
                   name="chatbubble-outline"
                   size={16}
-                  color={Colors.textTertiary}
+                  color={colors.textTertiary}
                 />
-                <Text style={styles.interactionText}>{post.comments}</Text>
+                <Text style={[styles.interactionText, { color: colors.textTertiary }]}>{post.comments}</Text>
               </TouchableOpacity>
             </Animated.View>
           </View>

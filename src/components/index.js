@@ -10,3 +10,4 @@ export { default as NaverMapView } from './NaverMapView';
 export { default as CoffeeCard } from './CoffeeCard';
 export { default as FlavorProfile } from './FlavorProfile';
 export { default as FlavorRadar } from './FlavorRadar';
+export { default as MiniMap } from './MiniMap';

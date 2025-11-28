@@ -123,16 +123,36 @@ export const uploadMultipleReviewImages = async (uris, reviewId) => {
   }
 };
 
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
+
 /**
  * 이미지 압축 (클라이언트 측)
- * Note: 실제 압축은 expo-image-manipulator 사용 필요
- * 현재는 placeholder 함수
  * @param {string} uri - 원본 이미지 URI
  * @param {number} quality - 압축 품질 (0-1)
  * @returns {Promise<string>} 압축된 이미지 URI
  */
 export const compressImage = async (uri, quality = 0.8) => {
-  // TODO: expo-image-manipulator를 사용한 실제 압축 구현
-  // 현재는 원본 URI 반환
-  return uri;
+  try {
+    const result = await manipulateAsync(
+      uri,
+      [{ resize: { width: 1080 } }], // Max width 1080px
+      { compress: quality, format: SaveFormat.JPEG }
+    );
+    return result.uri;
+  } catch (error) {
+    console.error('Error compressing image:', error);
+    return uri; // Fallback to original if compression fails
+  }
+};
+
+/**
+ * 프로필 이미지 업로드
+ * @param {string} uri - 로컬 이미지 URI
+ * @param {string} uid - 유저 UID
+ * @returns {Promise<string>} 다운로드 URL
+ */
+export const uploadProfileImage = async (uri, uid) => {
+  const fileName = `profile.jpg`;
+  // Store in users/{uid}/profile.jpg to overwrite previous photo automatically
+  return uploadImage(uri, `users/${uid}`, fileName);
 };

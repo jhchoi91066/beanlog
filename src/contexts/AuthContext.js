@@ -39,6 +39,7 @@ export const AuthProvider = ({ children }) => {
             uid: firebaseUser.uid,
             email: firebaseUser.email,
             displayName: userData.displayName,
+            providerData: firebaseUser.providerData, // Include providerData
             ...userData
           });
         } catch (error) {

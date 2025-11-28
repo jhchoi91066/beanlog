@@ -163,11 +163,22 @@ const SearchScreen = ({ navigation, route }) => {
   // Render map view with real cafe data
   const renderMapView = () => {
     // Filter cafes that have coordinates
-    const cafesWithCoordinates = cafes.filter(
-      cafe => cafe.coordinates &&
+    const cafesWithCoordinates = cafes.filter(cafe => {
+      // Check for mapx/mapy (Naver format)
+      if (cafe.mapx && cafe.mapy) return true;
+
+      // Check for coordinates object (Firestore GeoPoint or custom object)
+      if (cafe.coordinates &&
         ((cafe.coordinates.latitude && cafe.coordinates.longitude) ||
-          (cafe.coordinates._lat && cafe.coordinates._long))
-    );
+          (cafe.coordinates._lat && cafe.coordinates._long))) {
+        return true;
+      }
+
+      // Check for direct latitude/longitude
+      if (cafe.latitude && cafe.longitude) return true;
+
+      return false;
+    });
 
     return (
       <View style={styles.mapContainer}>

@@ -1,9 +1,25 @@
 // Cafe Service - Firestore 카페 데이터 관리
 // 문서 참조: The Foundation - Firestore 스키마
 
-import { collection, getDocs, doc, getDoc, query, where, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, query, where, updateDoc, arrayUnion, arrayRemove, addDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { getReviewsByCafe } from './reviewService';
+
+/**
+ * Create a new cafe
+ * @param {Object} cafeData - Cafe data
+ * @returns {Promise<string>} New cafe ID
+ */
+export const createCafe = async (cafeData) => {
+  try {
+    const cafesRef = collection(db, 'cafes');
+    const docRef = await addDoc(cafesRef, cafeData);
+    return docRef.id;
+  } catch (error) {
+    console.error('Error creating cafe:', error);
+    throw error;
+  }
+};
 
 /**
  * 모든 카페 목록 가져오기
