@@ -17,15 +17,16 @@ import {
   MyPageScreen,
   OnboardingScreen,
   SettingsScreen,
-  CommunityScreen,
+  // CommunityScreen,
   PostDetailScreen,
   WritePostScreen,
   ProfileEditScreen,
   PrivacySecurityScreen,
-  SupportScreen
+  SupportScreen,
+  RankingScreen
 } from '../screens';
 import FeedHomeScreen from '../screens/FeedHomeScreen';
-import ExploreScreen from '../screens/ExploreScreen';
+// import ExploreScreen from '../screens/ExploreScreen';
 import CollectionDetailScreen from '../screens/CollectionDetailScreen';
 import CategoryDetailScreen from '../screens/CategoryDetailScreen';
 import SearchScreen from '../screens/SearchScreen';
@@ -96,10 +97,12 @@ const AppNavigator = () => {
               iconName = focused ? 'search' : 'search-outline';
             } else if (route.name === 'Record') {
               iconName = 'add-circle'; // Always filled for highlighted effect
-            } else if (route.name === 'Explore') {
-              iconName = focused ? 'compass' : 'compass-outline';
-            } else if (route.name === 'Community') {
-              iconName = focused ? 'people' : 'people-outline';
+              // } else if (route.name === 'Explore') {
+              //   iconName = focused ? 'compass' : 'compass-outline';
+              // } else if (route.name === 'Community') {
+              //   iconName = focused ? 'people' : 'people-outline';
+            } else if (route.name === 'Ranking') {
+              iconName = focused ? 'trophy' : 'trophy-outline';
             } else if (route.name === 'MyPage') {
               iconName = focused ? 'person' : 'person-outline';
             }
@@ -170,21 +173,13 @@ const AppNavigator = () => {
           }}
         />
         <Tab.Screen
-          name="Explore"
-          component={ExploreScreen}
+          name="Ranking"
+          component={RankingScreen}
           options={{
-            tabBarLabel: '탐색',
+            tabBarLabel: '랭킹',
             headerShown: true,
-            headerTitle: '탐색',
+            headerTitle: '커피 랭킹',
             ...screenOptions,
-          }}
-        />
-        <Tab.Screen
-          name="Community"
-          component={CommunityScreen}
-          options={{
-            tabBarLabel: '커뮤니티',
-            headerShown: false,
           }}
         />
         <Tab.Screen
@@ -229,7 +224,7 @@ const AppNavigator = () => {
             headerBackTitle: '',
           }}
         />
-        <Stack.Screen
+        {/* <Stack.Screen
           name="CollectionDetail"
           component={CollectionDetailScreen}
           options={{ headerShown: false }}
@@ -238,7 +233,7 @@ const AppNavigator = () => {
           name="CategoryDetail"
           component={CategoryDetailScreen}
           options={{ headerShown: false }}
-        />
+        /> */}
         <Stack.Screen
           name="Settings"
           component={SettingsScreen}
@@ -304,7 +299,7 @@ const AppNavigator = () => {
                 ...screenOptions
               }}
             />
-            <Stack.Screen
+            {/* <Stack.Screen
               name="CollectionDetail"
               component={CollectionDetailScreen}
               options={{ headerShown: false }}
@@ -313,7 +308,7 @@ const AppNavigator = () => {
               name="CategoryDetail"
               component={CategoryDetailScreen}
               options={{ headerShown: false }}
-            />
+            /> */}
             <Stack.Screen
               name="PostDetail"
               component={PostDetailScreen}
@@ -338,7 +333,7 @@ const AppNavigator = () => {
                 ...screenOptions
               }}
             />
-            <Stack.Screen
+            {/* <Stack.Screen
               name="CollectionDetail"
               component={CollectionDetailScreen}
               options={{ headerShown: false }}
@@ -347,7 +342,7 @@ const AppNavigator = () => {
               name="CategoryDetail"
               component={CategoryDetailScreen}
               options={{ headerShown: false }}
-            />
+            /> */}
             <Stack.Screen
               name="PostDetail"
               component={PostDetailScreen}
@@ -373,7 +368,7 @@ const AppNavigator = () => {
                 ...screenOptions
               }}
             />
-            <Stack.Screen
+            {/* <Stack.Screen
               name="CollectionDetail"
               component={CollectionDetailScreen}
               options={{ headerShown: false }}
@@ -382,7 +377,7 @@ const AppNavigator = () => {
               name="CategoryDetail"
               component={CategoryDetailScreen}
               options={{ headerShown: false }}
-            />
+            /> */}
             <Stack.Screen
               name="PostDetail"
               component={PostDetailScreen}

@@ -225,7 +225,7 @@ const SettingsScreen = ({ navigation }) => {
           <View style={[styles.sectionContent, { backgroundColor: colors.backgroundWhite, borderColor: colors.border }]}>
             {/* Help & Support */}
             <TouchableOpacity
-              style={styles.settingItem}
+              style={[styles.settingItem, styles.settingItemWithBorder, { borderBottomColor: colors.divider }]}
               onPress={handleHelpSupport}
               activeOpacity={0.7}
             >
@@ -238,6 +238,45 @@ const SettingsScreen = ({ navigation }) => {
                   />
                 </View>
                 <Text style={[styles.settingLabel, { color: colors.textPrimary }]}>도움말 및 문의하기</Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={16}
+                color={colors.textTertiary}
+              />
+            </TouchableOpacity>
+
+            {/* Reset Onboarding (Dev Tool) */}
+            <TouchableOpacity
+              style={styles.settingItem}
+              onPress={() => {
+                Alert.alert(
+                  '온보딩 초기화',
+                  '온보딩 화면을 다시 보시겠습니까? 앱을 재실행해야 합니다.',
+                  [
+                    { text: '취소', style: 'cancel' },
+                    {
+                      text: '초기화',
+                      style: 'destructive',
+                      onPress: async () => {
+                        await AsyncStorage.removeItem('hasSeenOnboarding');
+                        Alert.alert('완료', '온보딩 상태가 초기화되었습니다. 앱을 종료하고 다시 실행해주세요.');
+                      }
+                    }
+                  ]
+                );
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={styles.settingLeft}>
+                <View style={[styles.iconContainer, { backgroundColor: colors.stone200 }]}>
+                  <Ionicons
+                    name="refresh"
+                    size={16}
+                    color={colors.stone600}
+                  />
+                </View>
+                <Text style={[styles.settingLabel, { color: colors.textPrimary }]}>온보딩 다시 보기</Text>
               </View>
               <Ionicons
                 name="chevron-forward"

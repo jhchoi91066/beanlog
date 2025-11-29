@@ -139,3 +139,47 @@ export const unblockUser = async (uid, targetUid) => {
     throw error;
   }
 };
+/**
+ * 사용자 취향 정보 업데이트
+ * @param {string} uid - Firebase Auth UID
+ * @param {Object} preferences - 취향 정보 (acidity, body, roast 등)
+ * @returns {Promise<void>}
+ */
+export const updateUserPreferences = async (uid, preferences) => {
+  try {
+    const userRef = doc(db, 'users', uid);
+    await updateDoc(userRef, {
+      preferences: preferences,
+      updatedAt: serverTimestamp()
+    });
+  } catch (error) {
+    console.error('Error updating user preferences:', error);
+    throw error;
+  }
+};
+
+/**
+ * Generate a human-readable description of the user's taste preferences
+ * @param {Object} preferences - User preferences { acidity, body, roast }
+ * @returns {string} Description string
+ */
+export const getTasteDescription = (preferences) => {
+  if (!preferences) return '아직 취향을 탐험 중이에요.';
+
+  const { acidity, body, roast } = preferences;
+  const descriptions = [];
+
+  if (roast === 'dark') descriptions.push('진하고 묵직한 다크 로스트');
+  else if (roast === 'light') descriptions.push('화사한 산미의 라이트 로스트');
+  else if (roast === 'medium') descriptions.push('밸런스 좋은 미디엄 로스트');
+
+  if (acidity === 'high') descriptions.push('상큼한 산미');
+  else if (acidity === 'low') descriptions.push('고소한 맛');
+
+  if (body === 'heavy') descriptions.push('묵직한 바디감');
+  else if (body === 'light') descriptions.push('깔끔한 목넘김');
+
+  if (descriptions.length === 0) return '다양한 커피를 즐기는 탐험가';
+
+  return `${descriptions.join(', ')}을(를) 선호하는 커피 애호가입니다.`;
+};

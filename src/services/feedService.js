@@ -111,3 +111,99 @@ export const getReviewsByAdvancedTag = async (tag, limitCount = 20) => {
     throw error;
   }
 };
+
+/**
+ * Get personalized feed based on user preferences
+ * @param {Object} preferences - User preferences { acidity, body, roast }
+ * @param {number} limitCount - Number of reviews to return
+ * @returns {Promise<Array>} Filtered and sorted array of reviews
+ */
+export const getPersonalizedFeed = async (preferences, limitCount = 10) => {
+  try {
+    // 1. Fetch a larger batch of recent reviews to filter client-side
+    // This avoids complex compound queries and index requirements for now
+    const reviewsRef = collection(db, 'reviews');
+    const q = query(
+      reviewsRef,
+      orderBy('createdAt', 'desc'),
+      limit(50) // Fetch 50 candidates
+    );
+    const snapshot = await getDocs(q);
+    const allReviews = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    // 2. Score each review based on preferences
+    const scoredReviews = allReviews.map(review => {
+      let score = 0;
+      const profile = review.flavorProfile || {};
+
+      // Roast Match (High weight)
+      if (preferences.roast && review.roasting) {
+        if (preferences.roast.toLowerCase() === review.roasting.toLowerCase()) {
+          score += 5;
+        }
+      }
+
+      // Acidity Match
+      if (preferences.acidity) {
+        const acidity = profile.acidity || 3;
+        if (preferences.acidity === 'high' && acidity >= 4) score += 3;
+        else if (preferences.acidity === 'low' && acidity <= 2) score += 3;
+        else if (preferences.acidity === 'medium' && (acidity >= 2 && acidity <= 4)) score += 3;
+      }
+
+      // Body Match
+      if (preferences.body) {
+        const body = profile.body || 3;
+        if (preferences.body === 'heavy' && body >= 4) score += 3;
+        else if (preferences.body === 'light' && body <= 2) score += 3;
+        else if (preferences.body === 'medium' && (body >= 2 && body <= 4)) score += 3;
+      }
+
+      return { ...review, score };
+    });
+
+    // 3. Filter and Sort
+    // Keep reviews with at least some match (score > 0)
+    const personalized = scoredReviews
+      .filter(item => item.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limitCount);
+
+    // If no matches, return empty (caller should fallback to recent)
+    return personalized;
+  } catch (error) {
+    console.error('Error fetching personalized feed:', error);
+    return [];
+  }
+};
+
+/**
+ * Get top rated reviews for ranking
+ * @param {number} limitCount - Number of reviews to fetch
+ * @returns {Promise<Array>} Array of reviews sorted by rating
+ */
+export const getTopRatedReviews = async (limitCount = 10) => {
+  try {
+    const reviewsRef = collection(db, 'reviews');
+    const q = query(
+      reviewsRef,
+      orderBy('rating', 'desc'),
+      orderBy('createdAt', 'desc'),
+      limit(limitCount)
+    );
+    const snapshot = await getDocs(q);
+
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  } catch (error) {
+    console.error('Error fetching top rated reviews:', error);
+    if (error.code === 'failed-precondition') {
+      console.warn('Firestore index needed for ranking. Please create the index.');
+      console.warn(error.message); // Log the message containing the link
+      return [];
+    }
+    throw error;
+  }
+};

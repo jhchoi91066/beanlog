@@ -12,6 +12,7 @@ import {
   Platform,
   Linking,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
@@ -19,9 +20,10 @@ import Colors from '../constants/colors';
 import Typography from '../constants/typography';
 import { CoffeeCard, LoadingSpinner } from '../components';
 import NaverMapView from '../components/NaverMapView';
-import { getRecentReviews, getReviewsByTag } from '../services/feedService';
+import { getRecentReviews, getReviewsByTag, getPersonalizedFeed, getTopRatedReviews } from '../services/feedService';
 import { getAllCafes } from '../services/cafeService';
 import { useTheme } from '../contexts';
+import { useAuth } from '../contexts/AuthContext';
 
 // Filter tags for coffee preferences (matches web design)
 const FILTER_TAGS = ['전체', '산미있는', '고소한', '디카페인', '핸드드립', '라떼맛집', '뷰맛집'];
@@ -133,11 +135,13 @@ const MOCK_POSTS = [
 
 const FeedHomeScreen = ({ navigation }) => {
   const { colors } = useTheme();
+  const { user } = useAuth(); // Get user for personalization
   const [activeTab, setActiveTab] = useState('feed');
   const [selectedFilter, setSelectedFilter] = useState('전체');
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [userPreferences, setUserPreferences] = useState(null); // Store user preferences
 
   // Location & Nearby cafes state
   const [userLocation, setUserLocation] = useState(null);
@@ -147,7 +151,7 @@ const FeedHomeScreen = ({ navigation }) => {
 
   // Load feed data on mount and when filter changes
   useEffect(() => {
-    loadFeed();
+    loadPreferencesAndFeed();
   }, []);
 
   useEffect(() => {
@@ -155,7 +159,7 @@ const FeedHomeScreen = ({ navigation }) => {
     if (activeTab === 'feed') {
       loadFeed();
     }
-  }, [selectedFilter]);
+  }, [selectedFilter, activeTab]);
 
   // Request location when "내 주변" tab is activated
   useEffect(() => {
@@ -165,8 +169,27 @@ const FeedHomeScreen = ({ navigation }) => {
   }, [activeTab]);
 
   /**
+   * Load user preferences first, then load feed
+   */
+  const loadPreferencesAndFeed = async () => {
+    try {
+      // Try to get preferences from AsyncStorage (saved during onboarding)
+      const storedPrefs = await AsyncStorage.getItem('userPreferences');
+      if (storedPrefs) {
+        const parsedPrefs = JSON.parse(storedPrefs);
+        setUserPreferences(parsedPrefs);
+        console.log('Loaded user preferences:', parsedPrefs);
+      }
+    } catch (error) {
+      console.error('Error loading preferences:', error);
+    } finally {
+      loadFeed();
+    }
+  };
+
+  /**
    * Load community feed from Firebase
-   * Applies current filter selection
+   * Applies current filter selection and personalization
    */
   const loadFeed = async () => {
     try {
@@ -174,11 +197,22 @@ const FeedHomeScreen = ({ navigation }) => {
       let reviews;
 
       if (selectedFilter === '전체') {
-        // Get all recent reviews
-        reviews = await getRecentReviews(20);
+        // If "All" is selected, try to show personalized feed first
+        if (userPreferences) {
+          console.log('Fetching personalized feed...');
+          reviews = await getPersonalizedFeed(userPreferences, 20);
+
+          // If personalized feed is empty (no matches), fallback to recent
+          if (reviews.length === 0) {
+            console.log('Personalized feed empty, falling back to recent');
+            reviews = await getRecentReviews(20);
+          }
+        } else {
+          // No preferences, show recent
+          reviews = await getRecentReviews(20);
+        }
       } else {
         // Map UI filter names to review tags
-        // Note: These filters can match basicTags, advancedTags, or custom tags
         const tagMap = {
           '산미있는': '산미',
           '고소한': '고소한',
@@ -213,11 +247,37 @@ const FeedHomeScreen = ({ navigation }) => {
   };
 
   /**
+   * Load ranking feed
+   */
+  const loadRanking = async () => {
+    try {
+      setLoading(true);
+      const reviews = await getTopRatedReviews(20);
+      const transformedPosts = reviews.map(transformReviewToPost);
+
+      if (transformedPosts.length > 0) {
+        setPosts(transformedPosts);
+      } else {
+        setPosts(MOCK_POSTS);
+      }
+    } catch (error) {
+      console.error('Error loading ranking:', error);
+      setPosts(MOCK_POSTS);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
    * Handle pull-to-refresh
    */
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadFeed();
+    if (activeTab === 'ranking') {
+      await loadRanking();
+    } else {
+      await loadPreferencesAndFeed();
+    }
     setRefreshing(false);
   };
 
@@ -227,12 +287,7 @@ const FeedHomeScreen = ({ navigation }) => {
   const transformReviewToPost = (review) => {
     // Debug: Log review data to check if cafeName and coffeeName exist
     if (!review.cafeName || !review.coffeeName) {
-      console.log('Missing cafe/coffee name in review:', {
-        id: review.id,
-        cafeName: review.cafeName,
-        coffeeName: review.coffeeName,
-        cafeId: review.cafeId
-      });
+      // console.log('Missing cafe/coffee name in review:', review.id);
     }
 
     return {
@@ -260,6 +315,7 @@ const FeedHomeScreen = ({ navigation }) => {
       comments: 0, // v0.2 feature
       date: formatDateRelative(review.createdAt),
       cafeId: review.cafeId,
+      score: review.score, // Include matching score if available
     };
   };
 
@@ -337,15 +393,6 @@ const FeedHomeScreen = ({ navigation }) => {
   const loadNearbyCafes = async (latitude, longitude) => {
     try {
       const allCafes = await getAllCafes();
-      console.log('Total cafes fetched from DB:', allCafes.length);
-
-      // Filter cafes that have coordinates
-      if (allCafes.length > 0) {
-        console.log('Sample cafe coordinates:', allCafes[0].coordinates);
-        if (allCafes[0].coordinates) {
-          console.log('Coordinate keys:', Object.keys(allCafes[0].coordinates));
-        }
-      }
 
       const cafesWithCoordinates = allCafes.filter(
         cafe => cafe.coordinates &&
@@ -420,8 +467,14 @@ const FeedHomeScreen = ({ navigation }) => {
 
   const renderHeader = () => (
     <View style={styles.headerSection}>
-      <Text style={[styles.greeting, { color: colors.textPrimary }]}>안녕하세요, 바리스타님 ☕️</Text>
-      <Text style={[styles.subGreeting, { color: colors.textSecondary }]}>오늘의 추천 커피를 확인해보세요.</Text>
+      <Text style={[styles.greeting, { color: colors.textPrimary }]}>
+        {user?.displayName ? `${user.displayName}님` : '바리스타님'} ☕️
+      </Text>
+      <Text style={[styles.subGreeting, { color: colors.textSecondary }]}>
+        {userPreferences
+          ? '취향에 딱 맞는 커피를 찾아왔어요.'
+          : '오늘의 추천 커피를 확인해보세요.'}
+      </Text>
     </View>
   );
 
@@ -456,21 +509,6 @@ const FeedHomeScreen = ({ navigation }) => {
             activeTab === 'nearby' && [styles.activeTabText, { color: colors.textPrimary }]
           ]}>
             내 주변
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.tab,
-            activeTab === 'ranking' && [styles.activeTab, { backgroundColor: colors.backgroundWhite }]
-          ]}
-          onPress={() => setActiveTab('ranking')}
-        >
-          <Text style={[
-            styles.tabText,
-            { color: colors.textSecondary },
-            activeTab === 'ranking' && [styles.activeTabText, { color: colors.textPrimary }]
-          ]}>
-            랭킹
           </Text>
         </TouchableOpacity>
       </View>
@@ -522,28 +560,64 @@ const FeedHomeScreen = ({ navigation }) => {
     }
 
     // Render feed with pull-to-refresh
-    // Note: posts will always have data (either Firebase or MOCK_POSTS fallback)
     return (
       <FlatList
         data={posts}
         keyExtractor={(item) => item.id}
         renderItem={({ item, index }) => (
-          <CoffeeCard
-            post={item}
-            index={index}
-            onPress={() => {
-              // Mock posts don't have cafeId, so only navigate for real posts
-              if (item.cafeId) {
-                navigation.navigate('CafeDetail', { cafeId: item.cafeId });
-              }
-            }}
-          />
+          <View>
+            {/* Show recommendation badge for high scoring items in Feed tab */}
+            {activeTab === 'feed' && item.score && item.score >= 5 && index === 0 && (
+              <View style={[styles.recommendationBadge, { backgroundColor: colors.brand + '20' }]}>
+                <Ionicons name="sparkles" size={14} color={colors.brand} />
+                <Text style={[styles.recommendationText, { color: colors.brand }]}>
+                  취향 저격 추천!
+                </Text>
+              </View>
+            )}
+
+            {/* Show Ranking Badge for Ranking Tab */}
+            {activeTab === 'ranking' && (
+              <View style={[
+                styles.rankingBadge,
+                index === 0 ? { backgroundColor: '#FFD700' } : // Gold
+                  index === 1 ? { backgroundColor: '#C0C0C0' } : // Silver
+                    index === 2 ? { backgroundColor: '#CD7F32' } : // Bronze
+                      { backgroundColor: colors.stone200 }
+              ]}>
+                <Text style={[
+                  styles.rankingText,
+                  index < 3 ? { color: 'white', fontWeight: 'bold' } : { color: colors.textSecondary }
+                ]}>
+                  {index + 1}위
+                </Text>
+              </View>
+            )}
+
+            <CoffeeCard
+              post={item}
+              index={index}
+              onPress={() => {
+                // Mock posts don't have cafeId, so only navigate for real posts
+                if (item.cafeId) {
+                  navigation.navigate('CafeDetail', { cafeId: item.cafeId });
+                }
+              }}
+            />
+          </View>
         )}
         contentContainerStyle={styles.feedContent}
         showsVerticalScrollIndicator={false}
         refreshing={refreshing}
         onRefresh={handleRefresh}
         scrollEnabled={false}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Text style={[styles.emptyStateText, { color: colors.textSecondary }]}>
+              아직 등록된 리뷰가 없습니다.
+            </Text>
+          </View>
+        }
       />
     );
   };
@@ -600,12 +674,6 @@ const FeedHomeScreen = ({ navigation }) => {
     }
 
     // Show map and nearby cafes list
-    console.log('Rendering nearby content. UserLocation:', userLocation);
-    console.log('Nearby cafes count:', nearbyCafes.length);
-    if (nearbyCafes.length > 0) {
-      console.log('First cafe coordinates:', nearbyCafes[0].coordinates);
-    }
-
     return (
       <View style={styles.nearbyContainer}>
         {/* Map View */}
@@ -681,12 +749,9 @@ const FeedHomeScreen = ({ navigation }) => {
     );
   };
 
-  const renderRankingContent = () => (
-    <View style={styles.emptyState}>
-      <Ionicons name="trophy-outline" size={48} color={Colors.stone300} />
-      <Text style={styles.emptyStateText}>이달의 인기 커피 랭킹을 준비중입니다.</Text>
-    </View>
-  );
+  const renderRankingContent = () => {
+    return renderFeedContent();
+  };
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -699,8 +764,6 @@ const FeedHomeScreen = ({ navigation }) => {
         );
       case 'nearby':
         return renderNearbyContent();
-      case 'ranking':
-        return renderRankingContent();
       default:
         return null;
     }
@@ -718,11 +781,14 @@ const FeedHomeScreen = ({ navigation }) => {
         {renderTabs()}
         {renderTabContent()}
 
-        {/* Recommendation Widget */}
-        {activeTab === 'feed' && (
+        {/* Recommendation Widget (Bottom) - Only show if we have preferences */}
+        {activeTab === 'feed' && userPreferences && (
           <View style={[styles.recommendationWidget, { backgroundColor: colors.backgroundWhite, borderColor: colors.border }]}>
             <Text style={[styles.recommendationLabel, { color: colors.textSecondary }]}>오늘의 커피 취향</Text>
-            <Text style={[styles.recommendationText, { color: colors.textPrimary }]}>산미있는 에티오피아 어때요?</Text>
+            <Text style={[styles.recommendationText, { color: colors.textPrimary }]}>
+              {userPreferences.roast === 'dark' ? '진하고 묵직한 다크 로스트' :
+                userPreferences.roast === 'light' ? '화사한 산미의 라이트 로스트' : '밸런스 좋은 미디엄 로스트'} 어때요?
+            </Text>
           </View>
         )}
       </ScrollView>
@@ -750,6 +816,34 @@ const styles = StyleSheet.create({
     fontWeight: Typography.h1.fontWeight,
     color: Colors.stone800,
     marginBottom: 8,
+  },
+  rankingBadge: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    zIndex: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  rankingText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  recommendationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+    marginBottom: 12,
+    gap: 4,
   },
   subGreeting: {
     fontSize: Typography.body.fontSize,

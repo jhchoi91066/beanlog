@@ -12,7 +12,9 @@ import {
   Image,
   Platform,
   Alert,
+  Share,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '../constants/colors';
@@ -24,6 +26,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts';
 import { getReviewsByUser, deleteReview } from '../services/reviewService';
 import { getCafeById, getSavedCafes } from '../services/cafeService';
+import { getTasteDescription } from '../services/userService';
 
 const MyPageScreen = ({ navigation }) => {
   const { colors } = useTheme();
@@ -45,11 +48,13 @@ const MyPageScreen = ({ navigation }) => {
     bitterness: 0,
     aroma: 0,
   });
+  const [userPreferences, setUserPreferences] = useState(null); // Onboarding preferences
 
   // Fetch user reviews on mount and when screen comes into focus
   useEffect(() => {
     if (user) {
       fetchUserReviews();
+      loadUserPreferences();
     }
   }, [user]);
 
@@ -61,6 +66,20 @@ const MyPageScreen = ({ navigation }) => {
       }
     }, [user])
   );
+
+  /**
+   * Load user preferences from AsyncStorage
+   */
+  const loadUserPreferences = async () => {
+    try {
+      const storedPrefs = await AsyncStorage.getItem('userPreferences');
+      if (storedPrefs) {
+        setUserPreferences(JSON.parse(storedPrefs));
+      }
+    } catch (error) {
+      console.error('Error loading preferences:', error);
+    }
+  };
 
   /**
    * Fetch user's reviews and calculate statistics
@@ -181,13 +200,14 @@ const MyPageScreen = ({ navigation }) => {
     // Sum up all flavor profiles
     const totals = userReviews.reduce(
       (acc, review) => {
-        if (review.flavorProfile) {
-          acc.acidity += review.flavorProfile.acidity || 0;
-          acc.sweetness += review.flavorProfile.sweetness || 0;
-          acc.body += review.flavorProfile.body || 0;
-          acc.bitterness += review.flavorProfile.bitterness || 0;
-          acc.aroma += review.flavorProfile.aroma || 0;
-        }
+        const profile = review.flavorProfile || review; // Fallback to top-level fields
+
+        acc.acidity += Number(profile.acidity) || 0;
+        acc.sweetness += Number(profile.sweetness) || 0;
+        acc.body += Number(profile.body) || 0;
+        acc.bitterness += Number(profile.bitterness) || 0;
+        acc.aroma += Number(profile.aroma) || 0;
+
         return acc;
       },
       { acidity: 0, sweetness: 0, body: 0, bitterness: 0, aroma: 0 }
@@ -205,42 +225,28 @@ const MyPageScreen = ({ navigation }) => {
   };
 
   /**
-   * Generate flavor description based on user's preference
-   * Provides personalized insight into user's taste profile
-   */
-  const getFlavorDescription = () => {
-    if (statistics.totalCoffees === 0) {
-      return '아직 충분한 기록이 없습니다.\n다양한 커피를 시도해보세요!';
-    }
-
-    // Find dominant flavor characteristics
-    const flavors = [
-      { name: '산미', value: flavorPreference.acidity, key: 'acidity' },
-      { name: '단맛', value: flavorPreference.sweetness, key: 'sweetness' },
-      { name: '바디감', value: flavorPreference.body, key: 'body' },
-      { name: '쓴맛', value: flavorPreference.bitterness, key: 'bitterness' },
-      { name: '향', value: flavorPreference.aroma, key: 'aroma' },
-    ];
-
-    // Sort by value descending
-    flavors.sort((a, b) => b.value - a.value);
-
-    const topFlavor = flavors[0];
-    const secondFlavor = flavors[1];
-
-    if (topFlavor.value >= 4) {
-      return `${topFlavor.name}${topFlavor.value >= 4.5 ? '가 매우' : '와'} ${secondFlavor.name}이 풍부한 커피를 선호하시네요!\n에티오피아나 케냐 계열의 원두와 잘 맞아요.`;
-    }
-
-    return `균형잡힌 맛의 커피를 선호하시는군요!\n다양한 원두를 즐기실 수 있어요.`;
-  };
-
-  /**
    * Handle settings button press
    * Navigate to Settings screen
    */
   const handleSettingsPress = () => {
     navigation.navigate('Settings');
+  };
+
+  /**
+   * Handle share passport
+   */
+  const handleSharePassport = async () => {
+    try {
+      const tasteDesc = getTasteDescription(userPreferences);
+      const message = `[BeanLog 커피 여권]\n\n☕️ ${user?.displayName || '익명'}님의 커피 취향\n"${tasteDesc}"\n\n지금까지 ${statistics.totalCoffees}잔의 커피를 기록했어요.\n\n#BeanLog #커피소믈리에 #커피취향`;
+
+      await Share.share({
+        message,
+        title: '나의 커피 여권',
+      });
+    } catch (error) {
+      console.error('Error sharing passport:', error);
+    }
   };
 
   /**
@@ -513,81 +519,74 @@ const MyPageScreen = ({ navigation }) => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header Section */}
-        <View style={[styles.headerSection, { backgroundColor: colors.backgroundWhite, borderBottomColor: colors.border }]}>
-          <View style={styles.headerTop}>
-            {/* Avatar and Info */}
-            <View style={styles.profileInfo}>
-              <View style={styles.avatarContainer}>
-                {user?.photoURL ? (
-                  <Image
-                    source={{ uri: user.photoURL }}
-                    style={styles.avatar}
-                  />
-                ) : (
-                  <View style={styles.avatarFallback}>
-                    <Text style={styles.avatarText}>
-                      {(user?.displayName || '익명').charAt(0)}
-                    </Text>
-                  </View>
-                )}
-              </View>
-              <View style={styles.userInfo}>
-                <Text style={[styles.userName, { color: colors.textPrimary }]}>{user?.displayName || '익명'}</Text>
-                <Text style={[styles.userBio, { color: colors.textSecondary }]}>{user?.email || '오늘도 맛있는 한 잔 ☕️'}</Text>
-                <View style={styles.levelBadge}>
-                  <Ionicons name="trophy" size={12} color={Colors.amber700} />
-                  <Text style={styles.levelText}>Barista Level</Text>
-                </View>
-              </View>
+        {/* Passport Card Section */}
+        <View style={[styles.passportCard, { backgroundColor: colors.backgroundWhite, borderColor: colors.border }]}>
+          <View style={styles.passportHeader}>
+            <View style={styles.passportTitleRow}>
+              <Ionicons name="book" size={20} color={colors.brand} />
+              <Text style={[styles.passportTitle, { color: colors.textPrimary }]}>COFFEE PASSPORT</Text>
             </View>
-
-            {/* Settings Button (triggers logout) */}
-            <TouchableOpacity
-              style={[styles.settingsButton, { backgroundColor: colors.backgroundWhite, borderColor: colors.border }]}
-              onPress={handleSettingsPress}
-            >
+            <TouchableOpacity onPress={handleSettingsPress}>
               <Ionicons name="settings-outline" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
-          {/* Stats */}
-          <View style={styles.statsContainer}>
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: colors.textPrimary }]}>{statistics.totalCoffees}</Text>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>기록</Text>
-            </View>
-            <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: colors.textPrimary }]}>{statistics.avgRating || '0.0'}</Text>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>평균 별점</Text>
-            </View>
-            <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: colors.textPrimary }]}>
-                {statistics.favoriteTag ? `#${statistics.favoriteTag}` : '-'}
-              </Text>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>선호 태그</Text>
-            </View>
-          </View>
-
-          {/* Flavor Preference Card */}
-          <View style={[styles.flavorCard, { backgroundColor: colors.stone50 }]}>
-            <View style={styles.flavorContent}>
-              <View style={styles.flavorTextContainer}>
-                <Text style={[styles.flavorTitle, { color: colors.textPrimary }]}>나의 커피 취향</Text>
-                <Text style={[styles.flavorDescription, { color: colors.textSecondary }]}>
-                  {getFlavorDescription()}
-                </Text>
-              </View>
-              {statistics.totalCoffees > 0 && (
-                <View style={styles.flavorProfileContainer}>
-                  <FlavorProfile flavorProfile={flavorPreference} />
+          <View style={styles.passportProfile}>
+            <View style={styles.avatarContainer}>
+              {user?.photoURL ? (
+                <Image source={{ uri: user.photoURL }} style={styles.avatar} />
+              ) : (
+                <View style={styles.avatarFallback}>
+                  <Text style={styles.avatarText}>{(user?.displayName || '익명').charAt(0)}</Text>
                 </View>
               )}
             </View>
+            <View style={styles.passportInfo}>
+              <Text style={[styles.userName, { color: colors.textPrimary }]}>{user?.displayName || '익명'}</Text>
+              <Text style={[styles.userLevel, { color: colors.brand }]}>Barista Level 1</Text>
+              <Text style={[styles.userBio, { color: colors.textSecondary }]}>
+                {getTasteDescription(userPreferences)}
+              </Text>
+            </View>
           </View>
+
+          <View style={styles.passportStats}>
+            <View style={styles.passportStatItem}>
+              <Text style={[styles.passportStatValue, { color: colors.textPrimary }]}>{statistics.totalCoffees}</Text>
+              <Text style={[styles.passportStatLabel, { color: colors.textSecondary }]}>기록</Text>
+            </View>
+            <View style={[styles.passportStatDivider, { backgroundColor: colors.border }]} />
+            <View style={styles.passportStatItem}>
+              <Text style={[styles.passportStatValue, { color: colors.textPrimary }]}>{statistics.avgRating || '0.0'}</Text>
+              <Text style={[styles.passportStatLabel, { color: colors.textSecondary }]}>평점</Text>
+            </View>
+            <View style={[styles.passportStatDivider, { backgroundColor: colors.border }]} />
+            <View style={styles.passportStatItem}>
+              <Text style={[styles.passportStatValue, { color: colors.textPrimary }]}>
+                {statistics.favoriteTag ? `#${statistics.favoriteTag}` : '-'}
+              </Text>
+              <Text style={[styles.passportStatLabel, { color: colors.textSecondary }]}>최애</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.shareButton, { backgroundColor: colors.stone100 }]}
+            onPress={handleSharePassport}
+          >
+            <Ionicons name="share-social" size={16} color={colors.textPrimary} />
+            <Text style={[styles.shareButtonText, { color: colors.textPrimary }]}>여권 공유하기</Text>
+          </TouchableOpacity>
         </View>
+
+        {/* Flavor Profile Section */}
+        {statistics.totalCoffees > 0 && (
+          <View style={[styles.sectionContainer, { backgroundColor: colors.backgroundWhite, borderColor: colors.border }]}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>나의 미각 분석</Text>
+            <View style={styles.flavorProfileContainer}>
+              <FlavorProfile flavorProfile={flavorPreference} />
+            </View>
+          </View>
+        )}
 
         {/* Tabs Section */}
         <View style={styles.tabsSection}>
@@ -662,143 +661,100 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
 
-  // Header Section (ProfileScreen design)
-  headerSection: {
-    backgroundColor: Colors.backgroundWhite,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.stone200,
-    paddingHorizontal: 16,
-    paddingTop: 40,
-    paddingBottom: 32,
+  // Passport Card Styles
+  passportCard: {
+    margin: 16,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  headerTop: {
+  passportHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 24,
+    alignItems: 'center',
+    marginBottom: 20,
   },
-  profileInfo: {
-    flex: 1,
+  passportTitleRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  passportTitle: {
+    fontSize: Typography.label.fontSize,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  passportProfile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
     gap: 16,
   },
-  avatarContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: Colors.stone100,
-  },
-  avatar: {
-    width: '100%',
-    height: '100%',
-  },
-  avatarFallback: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: Colors.stone300,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarText: {
-    fontSize: 32,
-    fontWeight: Typography.h1.fontWeight,
-    color: Colors.backgroundWhite,
-  },
-  userInfo: {
+  passportInfo: {
     flex: 1,
-    justifyContent: 'center',
   },
-  userName: {
-    fontSize: Typography.h1.fontSize,
-    fontWeight: Typography.h1.fontWeight,
-    color: Colors.stone800,
+  userLevel: {
+    fontSize: Typography.caption.fontSize,
+    fontWeight: '600',
     marginBottom: 4,
   },
-  userBio: {
-    fontSize: Typography.caption.fontSize,
-    color: Colors.stone500,
-    marginBottom: 8,
+  passportStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+    paddingHorizontal: 8,
   },
-  levelBadge: {
-    alignSelf: 'flex-start',
+  passportStatItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  passportStatValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  passportStatLabel: {
+    fontSize: 12,
+  },
+  passportStatDivider: {
+    width: 1,
+    height: '100%',
+  },
+  shareButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.amber100,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 8,
   },
-  levelText: {
-    fontSize: Typography.captionSmall.fontSize,
-    fontWeight: Typography.label.fontWeight,
-    color: Colors.amber700,
+  shareButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
-  settingsButton: {
-    width: 40,
-    height: 40,
+
+  // Section Styles
+  sectionContainer: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+    padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: Colors.stone200,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.backgroundWhite,
   },
-
-  // Stats (ProfileScreen design with real data)
-  statsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    marginBottom: 32,
-  },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: Typography.h2.fontSize,
-    fontWeight: Typography.h2.fontWeight,
-    color: Colors.stone800,
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: Typography.captionSmall.fontSize,
-    color: Colors.stone500,
-  },
-  statDivider: {
-    width: 1,
-    height: 32,
-    backgroundColor: Colors.stone200,
-  },
-
-  // Flavor Card (ProfileScreen design with calculated data)
-  flavorCard: {
-    backgroundColor: Colors.stone50,
-    borderRadius: 16,
-    padding: 16,
-  },
-  flavorContent: {
-    gap: 16,
-  },
-  flavorTextContainer: {
-    gap: 4,
-  },
-  flavorTitle: {
-    fontSize: Typography.caption.fontSize,
-    fontWeight: Typography.label.fontWeight,
-    color: Colors.stone800,
-  },
-  flavorDescription: {
-    fontSize: Typography.captionSmall.fontSize,
-    color: Colors.stone600,
-    lineHeight: 18,
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 12,
   },
   flavorProfileContainer: {
-    paddingVertical: 8,
+    alignItems: 'center',
   },
+
 
   // Tabs Section (ProfileScreen design)
   tabsSection: {
@@ -859,18 +815,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
-    // Shadow
-    ...Platform.select({
-      ios: {
-        shadowColor: Colors.shadow,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   savedCafeContent: {
     flexDirection: 'row',
