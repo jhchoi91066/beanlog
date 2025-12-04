@@ -2,7 +2,7 @@
 // Combines ProfileScreen UI design with actual Firebase data logic
 // Features: User profile, stats, flavor preferences, review management
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -30,6 +30,9 @@ import { useTheme } from '../contexts';
 import { getReviewsByUser, deleteReview } from '../services/reviewService';
 import { getCafeById, getSavedCafes } from '../services/cafeService';
 import { getTasteDescription } from '../services/userService';
+import { getUserAchievements } from '../services/achievementService';
+import ShareableCard from '../components/ShareableCard';
+import { captureAndShare } from '../services/shareService';
 
 const MyPageScreen = ({ navigation }) => {
   const { colors } = useTheme();
@@ -52,12 +55,14 @@ const MyPageScreen = ({ navigation }) => {
     aroma: 0,
   });
   const [userPreferences, setUserPreferences] = useState(null); // Onboarding preferences
+  const [achievements, setAchievements] = useState([]);
 
   // Fetch user reviews on mount and when screen comes into focus
   useEffect(() => {
     if (user) {
       fetchUserReviews();
       loadUserPreferences();
+      loadAchievements();
     }
   }, [user]);
 
@@ -66,9 +71,31 @@ const MyPageScreen = ({ navigation }) => {
     React.useCallback(() => {
       if (user) {
         fetchUserReviews();
+        loadAchievements();
       }
     }, [user])
   );
+
+  const loadAchievements = async () => {
+    try {
+      const data = await getUserAchievements(user.uid);
+      setAchievements(data || []);
+    } catch (error) {
+      console.error('Error loading achievements:', error);
+      setAchievements([]);
+    }
+  };
+
+  const getUnlockDate = (id) => {
+    if (!achievements) return null;
+    const achievement = achievements.find(a => a.id === id);
+    return achievement?.unlockedAt ? formatDateRelative(new Date(achievement.unlockedAt)) : null;
+  };
+
+  const isUnlocked = (id) => {
+    if (!achievements) return false;
+    return achievements.some(a => a.id === id);
+  };
 
   /**
    * Load user preferences from AsyncStorage
@@ -235,18 +262,25 @@ const MyPageScreen = ({ navigation }) => {
     navigation.navigate('Settings');
   };
 
+  const viewRef = useRef();
+
   /**
    * Handle share passport
    */
   const handleSharePassport = async () => {
     try {
-      const tasteDesc = getTasteDescription(userPreferences);
-      const message = `[BeanLog 커피 여권]\n\n☕️ ${user?.displayName || '익명'}님의 커피 취향\n"${tasteDesc}"\n\n지금까지 ${statistics.totalCoffees}잔의 커피를 기록했어요.\n\n#BeanLog #커피소믈리에 #커피취향`;
+      if (viewRef.current) {
+        await captureAndShare(viewRef);
+      } else {
+        // Fallback to text share if ref is not ready
+        const tasteDesc = getTasteDescription(userPreferences);
+        const message = `[BeanLog 커피 여권]\n\n☕️ ${user?.displayName || '익명'}님의 커피 취향\n"${tasteDesc}"\n\n지금까지 ${statistics.totalCoffees}잔의 커피를 기록했어요.\n\n#BeanLog #커피소믈리에 #커피취향`;
 
-      await Share.share({
-        message,
-        title: '나의 커피 여권',
-      });
+        await Share.share({
+          message,
+          title: '나의 커피 여권',
+        });
+      }
     } catch (error) {
       console.error('Error sharing passport:', error);
     }
@@ -618,27 +652,29 @@ const MyPageScreen = ({ navigation }) => {
               <PassportStamp
                 label="First Cup"
                 icon="cafe"
-                date={statistics.totalCoffees > 0 ? "2023.12" : null}
-                isLocked={statistics.totalCoffees === 0}
+                date={getUnlockDate('first_cup')}
+                isLocked={!isUnlocked('first_cup')}
                 color={Colors.brand}
               />
               <PassportStamp
                 label="Explorer"
                 icon="compass"
-                date={statistics.totalCoffees > 5 ? "2024.01" : null}
-                isLocked={statistics.totalCoffees <= 5}
+                date={getUnlockDate('explorer')}
+                isLocked={!isUnlocked('explorer')}
                 color={Colors.blue}
               />
               <PassportStamp
                 label="Master"
                 icon="trophy"
-                isLocked={statistics.totalCoffees <= 10}
+                date={getUnlockDate('master')}
+                isLocked={!isUnlocked('master')}
                 color={Colors.amber600}
               />
               <PassportStamp
-                label="Social"
-                icon="people"
-                isLocked={true}
+                label="Photographer"
+                icon="camera"
+                date={getUnlockDate('photographer')}
+                isLocked={!isUnlocked('photographer')}
                 color={Colors.purple}
               />
             </ScrollView>
@@ -719,7 +755,21 @@ const MyPageScreen = ({ navigation }) => {
           <View style={styles.tabContent}>{renderTabContent()}</View>
         </View>
       </ScrollView>
-    </View>
+
+
+      {/* Hidden Shareable Card for Capture */}
+      <View
+        collapsable={false}
+        ref={viewRef}
+        style={{ position: 'absolute', left: -1000, top: 0 }}
+      >
+        <ShareableCard
+          user={user}
+          stats={statistics}
+          achievements={achievements}
+        />
+      </View>
+    </View >
   );
 };
 

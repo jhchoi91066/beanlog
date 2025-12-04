@@ -87,6 +87,14 @@ export const getReviewsByUser = async (userId) => {
  * Note: This function automatically adds userDisplayName and userPhotoURL
  * from the currently authenticated user for community feed display
  */
+import { checkAchievements } from './achievementService';
+
+// ... (existing imports)
+
+/**
+ * 새 리뷰 작성
+ * ...
+ */
 export const createReview = async (reviewData) => {
   try {
     const reviewsRef = collection(db, 'reviews');
@@ -103,6 +111,29 @@ export const createReview = async (reviewData) => {
     };
 
     const docRef = await addDoc(reviewsRef, reviewWithUserInfo);
+
+    // Check for achievements
+    if (currentUser) {
+      try {
+        // Fetch updated user reviews to calculate stats
+        const userReviews = await getReviewsByUser(currentUser.uid);
+
+        // Calculate stats
+        const uniqueCafes = new Set(userReviews.map(r => r.cafeId)).size;
+        const photoReviews = userReviews.filter(r => r.photoUrls && r.photoUrls.length > 0).length;
+
+        const stats = {
+          totalReviews: userReviews.length,
+          uniqueCafes,
+          photoReviews
+        };
+
+        await checkAchievements(currentUser.uid, stats);
+      } catch (achievementError) {
+        console.error('Error checking achievements:', achievementError);
+        // Don't fail the review creation if achievement check fails
+      }
+    }
 
     return {
       id: docRef.id,

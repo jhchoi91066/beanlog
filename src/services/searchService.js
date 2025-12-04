@@ -20,58 +20,107 @@ const MAX_RECENT_SEARCHES = 10;
  * so we fetch all cafes and filter client-side.
  * For large datasets (>1000 cafes), integrate Algolia or similar service.
  */
-export const searchCafes = async (searchText, limitCount = 20) => {
+export const searchCafes = async (searchText, limitCount = 20, flavorFilter = null) => {
   try {
     // 1. Fetch all cafes
     const cafesRef = collection(db, 'cafes');
     const cafesSnapshot = await getDocs(query(cafesRef, limit(100)));
     const cafes = cafesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-    // 2. Fetch recent reviews to search tags/content
+    // 2. Fetch recent reviews to search tags/content AND flavor profile
     const reviewsRef = collection(db, 'reviews');
     // Fetching more reviews to ensure we cover enough ground for tags
     const reviewsSnapshot = await getDocs(query(reviewsRef, orderBy('createdAt', 'desc'), limit(200)));
     const reviews = reviewsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
     const lowerSearch = searchText.toLowerCase().trim();
+    const hasSearchText = lowerSearch.length > 0;
 
     // 3. Find cafe IDs that have matching reviews
     const matchingCafeIdsFromReviews = new Set();
+    const cafeFlavorProfiles = {}; // Store accumulated flavor profiles for cafes
+
     reviews.forEach(review => {
       if (!review.cafeId) return;
 
-      // Check tags
-      const tagMatch = [
-        ...(review.basicTags || []),
-        ...(review.advancedTags || [])
-      ].some(tag => tag.toLowerCase().includes(lowerSearch));
+      // Accumulate flavor data for this cafe
+      if (review.flavorProfile) {
+        if (!cafeFlavorProfiles[review.cafeId]) {
+          cafeFlavorProfiles[review.cafeId] = {
+            acidity: 0, sweetness: 0, body: 0, bitterness: 0, aroma: 0, count: 0
+          };
+        }
+        const profile = cafeFlavorProfiles[review.cafeId];
+        profile.acidity += (review.flavorProfile.acidity || 0);
+        profile.sweetness += (review.flavorProfile.sweetness || 0);
+        profile.body += (review.flavorProfile.body || 0);
+        profile.bitterness += (review.flavorProfile.bitterness || 0);
+        profile.aroma += (review.flavorProfile.aroma || 0);
+        profile.count += 1;
+      }
 
-      // Check content
-      const contentMatch = review.comment?.toLowerCase().includes(lowerSearch) ||
-        review.coffeeName?.toLowerCase().includes(lowerSearch);
+      if (hasSearchText) {
+        // Check tags
+        const tagMatch = [
+          ...(review.basicTags || []),
+          ...(review.advancedTags || [])
+        ].some(tag => tag.toLowerCase().includes(lowerSearch));
 
-      if (tagMatch || contentMatch) {
-        matchingCafeIdsFromReviews.add(review.cafeId);
+        // Check content
+        const contentMatch = review.comment?.toLowerCase().includes(lowerSearch) ||
+          review.coffeeName?.toLowerCase().includes(lowerSearch);
+
+        if (tagMatch || contentMatch) {
+          matchingCafeIdsFromReviews.add(review.cafeId);
+        }
       }
     });
 
     // 4. Filter cafes
     const filtered = cafes.filter(cafe => {
-      // Search in cafe name
-      const nameMatch = cafe.name?.toLowerCase().includes(lowerSearch);
+      // Text Search Filter
+      let textMatch = true;
+      if (hasSearchText) {
+        const nameMatch = cafe.name?.toLowerCase().includes(lowerSearch);
+        const addressMatch = cafe.address?.toLowerCase().includes(lowerSearch);
+        const locationTagMatch = cafe.locationTags?.some(tag =>
+          tag.toLowerCase().includes(lowerSearch)
+        );
+        const reviewMatch = matchingCafeIdsFromReviews.has(cafe.id);
+        textMatch = nameMatch || addressMatch || locationTagMatch || reviewMatch;
+      }
 
-      // Search in address
-      const addressMatch = cafe.address?.toLowerCase().includes(lowerSearch);
+      // Flavor Filter
+      let flavorMatch = true;
+      if (flavorFilter) {
+        // Check if any filter is active
+        const isFilterActive = Object.values(flavorFilter).some(val => val > 0);
 
-      // Search in location tags
-      const locationTagMatch = cafe.locationTags?.some(tag =>
-        tag.toLowerCase().includes(lowerSearch)
-      );
+        if (isFilterActive) {
+          const cafeProfile = cafeFlavorProfiles[cafe.id];
+          if (!cafeProfile) {
+            flavorMatch = false; // No reviews, so can't match flavor
+          } else {
+            // Calculate average
+            const avgProfile = {
+              acidity: cafeProfile.acidity / cafeProfile.count,
+              sweetness: cafeProfile.sweetness / cafeProfile.count,
+              body: cafeProfile.body / cafeProfile.count,
+              bitterness: cafeProfile.bitterness / cafeProfile.count,
+              aroma: cafeProfile.aroma / cafeProfile.count,
+            };
 
-      // Search in associated reviews
-      const reviewMatch = matchingCafeIdsFromReviews.has(cafe.id);
+            // Check against filter (minimum values)
+            if (flavorFilter.acidity > 0 && avgProfile.acidity < flavorFilter.acidity) flavorMatch = false;
+            if (flavorFilter.sweetness > 0 && avgProfile.sweetness < flavorFilter.sweetness) flavorMatch = false;
+            if (flavorFilter.body > 0 && avgProfile.body < flavorFilter.body) flavorMatch = false;
+            if (flavorFilter.bitterness > 0 && avgProfile.bitterness < flavorFilter.bitterness) flavorMatch = false;
+            if (flavorFilter.aroma > 0 && avgProfile.aroma < flavorFilter.aroma) flavorMatch = false;
+          }
+        }
+      }
 
-      return nameMatch || addressMatch || locationTagMatch || reviewMatch;
+      return textMatch && flavorMatch;
     });
 
     return filtered.slice(0, limitCount);

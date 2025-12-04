@@ -113,38 +113,49 @@ export const getReviewsByAdvancedTag = async (tag, limitCount = 20) => {
 };
 
 /**
- * Get personalized feed based on user preferences
+ * Get personalized feed based on user preferences and optional flavor filter
  * @param {Object} preferences - User preferences { acidity, body, roast }
  * @param {number} limitCount - Number of reviews to return
+ * @param {Object} flavorFilter - Optional filter { acidity, sweetness, body, bitterness, aroma }
  * @returns {Promise<Array>} Filtered and sorted array of reviews
  */
-export const getPersonalizedFeed = async (preferences, limitCount = 10) => {
+export const getPersonalizedFeed = async (preferences, limitCount = 10, flavorFilter = null) => {
   try {
     // 1. Fetch a larger batch of recent reviews to filter client-side
-    // This avoids complex compound queries and index requirements for now
     const reviewsRef = collection(db, 'reviews');
     const q = query(
       reviewsRef,
       orderBy('createdAt', 'desc'),
-      limit(50) // Fetch 50 candidates
+      limit(100) // Fetch 100 candidates
     );
     const snapshot = await getDocs(q);
     const allReviews = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-    // 2. Score each review based on preferences
+    // 2. Score and Filter each review
     const scoredReviews = allReviews.map(review => {
       let score = 0;
       const profile = review.flavorProfile || {};
 
+      // --- Filter Check ---
+      if (flavorFilter) {
+        if (flavorFilter.acidity > 0 && (profile.acidity || 0) < flavorFilter.acidity) return null;
+        if (flavorFilter.sweetness > 0 && (profile.sweetness || 0) < flavorFilter.sweetness) return null;
+        if (flavorFilter.body > 0 && (profile.body || 0) < flavorFilter.body) return null;
+        if (flavorFilter.bitterness > 0 && (profile.bitterness || 0) < flavorFilter.bitterness) return null;
+        if (flavorFilter.aroma > 0 && (profile.aroma || 0) < flavorFilter.aroma) return null;
+      }
+
+      // --- Scoring Logic ---
+
       // Roast Match (High weight)
-      if (preferences.roast && review.roasting) {
+      if (preferences?.roast && review.roasting) {
         if (preferences.roast.toLowerCase() === review.roasting.toLowerCase()) {
           score += 5;
         }
       }
 
       // Acidity Match
-      if (preferences.acidity) {
+      if (preferences?.acidity) {
         const acidity = profile.acidity || 3;
         if (preferences.acidity === 'high' && acidity >= 4) score += 3;
         else if (preferences.acidity === 'low' && acidity <= 2) score += 3;
@@ -152,24 +163,25 @@ export const getPersonalizedFeed = async (preferences, limitCount = 10) => {
       }
 
       // Body Match
-      if (preferences.body) {
+      if (preferences?.body) {
         const body = profile.body || 3;
         if (preferences.body === 'heavy' && body >= 4) score += 3;
         else if (preferences.body === 'light' && body <= 2) score += 3;
         else if (preferences.body === 'medium' && (body >= 2 && body <= 4)) score += 3;
       }
 
+      // Base score for recent posts (optional, to keep fresh content relevant)
+      // score += 1; 
+
       return { ...review, score };
     });
 
-    // 3. Filter and Sort
-    // Keep reviews with at least some match (score > 0)
+    // 3. Filter nulls (filtered out) and Sort
     const personalized = scoredReviews
-      .filter(item => item.score > 0)
-      .sort((a, b) => b.score - a.score)
+      .filter(item => item !== null) // Remove filtered items
+      .sort((a, b) => b.score - a.score) // Sort by score desc
       .slice(0, limitCount);
 
-    // If no matches, return empty (caller should fallback to recent)
     return personalized;
   } catch (error) {
     console.error('Error fetching personalized feed:', error);

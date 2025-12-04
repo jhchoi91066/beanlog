@@ -14,7 +14,9 @@ import {
   Platform,
   FlatList,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
+import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Colors from '../constants/colors';
@@ -42,6 +44,14 @@ const SearchScreen = ({ navigation, route }) => {
   const [trendingKeywords, setTrendingKeywords] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [flavorFilter, setFlavorFilter] = useState({
+    acidity: 0,
+    sweetness: 0,
+    body: 0,
+    bitterness: 0,
+    aroma: 0,
+  });
 
   // Load initial data on mount
   useEffect(() => {
@@ -114,13 +124,16 @@ const SearchScreen = ({ navigation, route }) => {
    */
   const handleSearch = async (customText) => {
     const textToSearch = customText || searchText;
-    if (!textToSearch.trim()) return;
+    const isFilterActive = Object.values(flavorFilter).some(val => val > 0);
+
+    // Allow search if text is present OR filter is active
+    if (!textToSearch.trim() && !isFilterActive) return;
 
     try {
       setLoading(true);
       setSearched(true);
 
-      const results = await searchCafes(textToSearch);
+      const results = await searchCafes(textToSearch, 20, flavorFilter);
       setCafes(results);
 
       // Save to recent searches
@@ -292,9 +305,24 @@ const SearchScreen = ({ navigation, route }) => {
               {/* Results header */}
               <View style={styles.resultsHeader}>
                 <Text style={styles.resultsTitle}>
-                  {cafes.length > 0
-                    ? `"${searchText}" 검색 결과 (${cafes.length}개)`
-                    : '검색 결과가 없습니다'}
+                  {(() => {
+                    if (searchText.trim()) {
+                      return `"${searchText}" 검색 결과 (${cafes.length}개)`;
+                    }
+
+                    const activeFilters = [];
+                    if (flavorFilter.acidity > 0) activeFilters.push(`산미 ${flavorFilter.acidity}+`);
+                    if (flavorFilter.sweetness > 0) activeFilters.push(`단맛 ${flavorFilter.sweetness}+`);
+                    if (flavorFilter.body > 0) activeFilters.push(`바디감 ${flavorFilter.body}+`);
+                    if (flavorFilter.bitterness > 0) activeFilters.push(`쓴맛 ${flavorFilter.bitterness}+`);
+                    if (flavorFilter.aroma > 0) activeFilters.push(`향 ${flavorFilter.aroma}+`);
+
+                    if (activeFilters.length > 0) {
+                      return `${activeFilters.join(', ')} 검색 결과 (${cafes.length}개)`;
+                    }
+
+                    return `전체 카페 목록 (${cafes.length}개)`;
+                  })()}
                 </Text>
                 {cafes.length > 0 && (
                   <TouchableOpacity
@@ -500,10 +528,109 @@ const SearchScreen = ({ navigation, route }) => {
             <Ionicons name="map" size={20} color={viewMode === 'map' ? Colors.amber600 : colors.textTertiary} />
           </TouchableOpacity>
         </View>
+
+        {/* Filter Button */}
+        <TouchableOpacity
+          style={[
+            styles.filterButton,
+            (flavorFilter.acidity > 0 || flavorFilter.sweetness > 0 || flavorFilter.body > 0 || flavorFilter.bitterness > 0 || flavorFilter.aroma > 0) &&
+            { backgroundColor: Colors.amber100, borderColor: Colors.amber600 }
+          ]}
+          onPress={() => setShowFilterModal(true)}
+        >
+          <Ionicons
+            name="options"
+            size={20}
+            color={(flavorFilter.acidity > 0 || flavorFilter.sweetness > 0 || flavorFilter.body > 0 || flavorFilter.bitterness > 0 || flavorFilter.aroma > 0) ? Colors.amber600 : colors.textTertiary}
+          />
+        </TouchableOpacity>
       </View>
 
       {/* Content Area */}
       {viewMode === 'map' ? renderMapView() : renderListView()}
+
+      {/* Flavor Filter Modal */}
+      <Modal
+        visible={showFilterModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowFilterModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.backgroundWhite }]}>
+            {/* Handle Bar */}
+            <View style={{ alignItems: 'center', paddingTop: 12 }}>
+              <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: colors.stone300 }} />
+            </View>
+
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>맛 상세 검색</Text>
+              <TouchableOpacity onPress={() => setShowFilterModal(false)}>
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+                원하는 커피 스타일을 설정해주세요 (최소값)
+              </Text>
+
+              {Object.keys(flavorFilter).map((flavor) => (
+                <View key={flavor} style={styles.sliderContainer}>
+                  <View style={styles.sliderLabelRow}>
+                    <Text style={[styles.sliderLabel, { color: colors.textPrimary }]}>
+                      {flavor === 'acidity' ? '산미 (Acidity)' :
+                        flavor === 'sweetness' ? '단맛 (Sweetness)' :
+                          flavor === 'body' ? '바디감 (Body)' :
+                            flavor === 'bitterness' ? '쓴맛 (Bitterness)' :
+                              '향 (Aroma)'}
+                    </Text>
+                    <Text style={[styles.sliderValue, { color: Colors.brand }]}>
+                      {flavorFilter[flavor] > 0 ? `${flavorFilter[flavor]}점 이상` : '전체'}
+                    </Text>
+                  </View>
+                  <Slider
+                    style={{ width: '100%', height: 40 }}
+                    minimumValue={0}
+                    maximumValue={5}
+                    step={1}
+                    value={flavorFilter[flavor]}
+                    onValueChange={(val) => setFlavorFilter(prev => ({ ...prev, [flavor]: val }))}
+                    minimumTrackTintColor={Colors.brand}
+                    maximumTrackTintColor={colors.stone200}
+                    thumbTintColor={Colors.brand}
+                  />
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 10 }}>
+                    <Text style={{ fontSize: 10, color: colors.textTertiary }}>0</Text>
+                    <Text style={{ fontSize: 10, color: colors.textTertiary }}>5</Text>
+                  </View>
+                </View>
+              ))}
+              <View style={{ height: 20 }} />
+            </ScrollView>
+
+            <View style={[styles.modalFooter, { borderTopColor: colors.border }]}>
+              <TouchableOpacity
+                style={[styles.resetButton, { borderColor: colors.border }]}
+                onPress={() => {
+                  setFlavorFilter({ acidity: 0, sweetness: 0, body: 0, bitterness: 0, aroma: 0 });
+                }}
+              >
+                <Text style={[styles.resetButtonText, { color: colors.textSecondary }]}>초기화</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.applyButton, { backgroundColor: Colors.brand }]}
+                onPress={() => {
+                  setShowFilterModal(false);
+                  handleSearch();
+                }}
+              >
+                <Text style={styles.applyButtonText}>적용하기</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -1014,6 +1141,101 @@ const styles = StyleSheet.create({
     fontSize: Typography.caption.fontSize,
     color: Colors.stone500,
     marginTop: 12,
+  },
+  filterButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 8, // Match viewButton
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.stone100,
+    marginLeft: 8,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.stone100,
+  },
+  modalTitle: {
+    fontSize: Typography.h4.fontSize,
+    fontWeight: '700',
+  },
+  modalBody: {
+    padding: 20,
+  },
+  modalSubtitle: {
+    fontSize: Typography.body.fontSize,
+    marginBottom: 24,
+  },
+  sliderContainer: {
+    marginBottom: 24,
+  },
+  sliderLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    alignItems: 'center',
+  },
+  sliderLabel: {
+    fontSize: Typography.body.fontSize,
+    fontWeight: '600',
+  },
+  sliderValue: {
+    fontSize: Typography.caption.fontSize,
+    fontWeight: '600',
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    padding: 20,
+    gap: 12,
+    borderTopWidth: 1,
+  },
+  resetButton: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resetButtonText: {
+    fontSize: Typography.body.fontSize,
+    fontWeight: '600',
+  },
+  applyButton: {
+    flex: 2,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  applyButtonText: {
+    fontSize: Typography.body.fontSize,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   map: {
     flex: 1,

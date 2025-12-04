@@ -11,7 +11,9 @@ import {
   FlatList,
   Platform,
   Linking,
+  Modal,
 } from 'react-native';
+import Slider from '@react-native-community/slider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -143,6 +145,14 @@ const FeedHomeScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [userPreferences, setUserPreferences] = useState(null); // Store user preferences
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [flavorFilter, setFlavorFilter] = useState({
+    acidity: 0,
+    sweetness: 0,
+    body: 0,
+    bitterness: 0,
+    aroma: 0,
+  });
 
   // Location & Nearby cafes state
   const [userLocation, setUserLocation] = useState(null);
@@ -211,17 +221,21 @@ const FeedHomeScreen = ({ navigation }) => {
 
       if (selectedFilter === '전체') {
         // If "All" is selected, try to show personalized feed first
-        if (userPreferences) {
-          console.log('Fetching personalized feed...');
-          reviews = await getPersonalizedFeed(userPreferences, 20);
+        // Check if filter is active
+        const isFilterActive = Object.values(flavorFilter).some(val => val > 0);
 
-          // If personalized feed is empty (no matches), fallback to recent
-          if (reviews.length === 0) {
+        if (userPreferences || isFilterActive) {
+          console.log('Fetching personalized feed...');
+          reviews = await getPersonalizedFeed(userPreferences || {}, 20, flavorFilter);
+
+          // If personalized feed is empty (no matches), fallback to recent ONLY if no filter is active
+          // If filter is active, we should show empty state or filtered results, not random recent posts
+          if (reviews.length === 0 && !isFilterActive) {
             console.log('Personalized feed empty, falling back to recent');
             reviews = await getRecentReviews(20);
           }
         } else {
-          // No preferences, show recent
+          // No preferences and no filter, show recent
           reviews = await getRecentReviews(20);
         }
       } else {
@@ -491,11 +505,14 @@ const FeedHomeScreen = ({ navigation }) => {
 
       <View style={{ marginTop: 20, marginBottom: -10 }}>
         <FeaturedCarousel
-          cafes={featuredCafes}
-          onPress={(id) => {
+          data={featuredCafes}
+          onPressItem={(item) => {
             // Find the post with this ID to get cafeId if available, or just navigate
             // For mock data, we might not have real cafeId
-            console.log('Featured pressed:', id);
+            console.log('Featured pressed:', item.id);
+            if (item.id) {
+              // Logic to navigate to cafe detail if possible, or just log for now
+            }
           }}
         />
       </View>
@@ -537,9 +554,23 @@ const FeedHomeScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity style={[styles.filterButton, { borderColor: colors.border }]}>
-        <Ionicons name="options-outline" size={16} color={colors.textSecondary} />
-        <Text style={[styles.filterButtonText, { color: colors.textSecondary }]}>필터</Text>
+      <TouchableOpacity
+        style={[
+          styles.filterButton,
+          { borderColor: colors.border },
+          Object.values(flavorFilter).some(v => v > 0) && { backgroundColor: Colors.amber100, borderColor: Colors.amber600 }
+        ]}
+        onPress={() => setShowFilterModal(true)}
+      >
+        <Ionicons
+          name="options-outline"
+          size={16}
+          color={Object.values(flavorFilter).some(v => v > 0) ? Colors.amber600 : colors.textSecondary}
+        />
+        <Text style={[
+          styles.filterButtonText,
+          { color: Object.values(flavorFilter).some(v => v > 0) ? Colors.amber600 : colors.textSecondary }
+        ]}>필터</Text>
       </TouchableOpacity>
     </View>
   );
@@ -594,7 +625,7 @@ const FeedHomeScreen = ({ navigation }) => {
         renderItem={({ item, index }) => (
           <View>
             {/* Show recommendation badge for high scoring items in Feed tab */}
-            {activeTab === 'feed' && item.score && item.score >= 5 && index === 0 && (
+            {activeTab === 'feed' && item.score >= 5 && index === 0 && (
               <View style={[styles.recommendationBadge, { backgroundColor: colors.brand + '20' }]}>
                 <Ionicons name="sparkles" size={14} color={colors.brand} />
                 <Text style={[styles.recommendationText, { color: colors.brand }]}>
@@ -795,6 +826,89 @@ const FeedHomeScreen = ({ navigation }) => {
           <>
             {renderFilterTags()}
             {renderFeedContent()}
+
+            {/* Flavor Filter Modal */}
+            <Modal
+              visible={showFilterModal}
+              animationType="slide"
+              transparent={true}
+              onRequestClose={() => setShowFilterModal(false)}
+            >
+              <View style={styles.modalOverlay}>
+                <View style={[styles.modalContent, { backgroundColor: colors.backgroundWhite }]}>
+                  {/* Handle Bar */}
+                  <View style={{ alignItems: 'center', paddingTop: 12 }}>
+                    <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: colors.stone300 }} />
+                  </View>
+
+                  <View style={styles.modalHeader}>
+                    <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>맛 상세 설정</Text>
+                    <TouchableOpacity onPress={() => setShowFilterModal(false)}>
+                      <Ionicons name="close" size={24} color={colors.textSecondary} />
+                    </TouchableOpacity>
+                  </View>
+
+                  <ScrollView style={styles.modalBody}>
+                    <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+                      원하는 커피 스타일을 설정해주세요 (최소값)
+                    </Text>
+
+                    {Object.keys(flavorFilter).map((flavor) => (
+                      <View key={flavor} style={styles.sliderContainer}>
+                        <View style={styles.sliderLabelRow}>
+                          <Text style={[styles.sliderLabel, { color: colors.textPrimary }]}>
+                            {flavor === 'acidity' ? '산미 (Acidity)' :
+                              flavor === 'sweetness' ? '단맛 (Sweetness)' :
+                                flavor === 'body' ? '바디감 (Body)' :
+                                  flavor === 'bitterness' ? '쓴맛 (Bitterness)' :
+                                    '향 (Aroma)'}
+                          </Text>
+                          <Text style={[styles.sliderValue, { color: Colors.brand }]}>
+                            {flavorFilter[flavor] > 0 ? `${flavorFilter[flavor]}점 이상` : '전체'}
+                          </Text>
+                        </View>
+                        <Slider
+                          style={{ width: '100%', height: 40 }}
+                          minimumValue={0}
+                          maximumValue={5}
+                          step={1}
+                          value={flavorFilter[flavor]}
+                          onValueChange={(val) => setFlavorFilter(prev => ({ ...prev, [flavor]: val }))}
+                          minimumTrackTintColor={Colors.brand}
+                          maximumTrackTintColor={colors.stone200}
+                          thumbTintColor={Colors.brand}
+                        />
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 10 }}>
+                          <Text style={{ fontSize: 10, color: colors.textTertiary }}>0</Text>
+                          <Text style={{ fontSize: 10, color: colors.textTertiary }}>5</Text>
+                        </View>
+                      </View>
+                    ))}
+                    <View style={{ height: 20 }} />
+                  </ScrollView>
+
+                  <View style={[styles.modalFooter, { borderTopColor: colors.border }]}>
+                    <TouchableOpacity
+                      style={[styles.resetButton, { borderColor: colors.border }]}
+                      onPress={() => {
+                        setFlavorFilter({ acidity: 0, sweetness: 0, body: 0, bitterness: 0, aroma: 0 });
+                      }}
+                    >
+                      <Text style={[styles.resetButtonText, { color: colors.textSecondary }]}>초기화</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.applyButton, { backgroundColor: Colors.brand }]}
+                      onPress={() => {
+                        setShowFilterModal(false);
+                        loadFeed(); // Reload feed with new filter
+                      }}
+                    >
+                      <Text style={styles.applyButtonText}>적용하기</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </Modal>
           </>
         );
       case 'nearby':
@@ -1164,6 +1278,93 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: Typography.h3.fontWeight,
     color: Colors.stone800,
+  },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.stone100,
+  },
+  modalTitle: {
+    fontSize: Typography.h4.fontSize,
+    fontWeight: '700',
+  },
+  modalBody: {
+    padding: 20,
+  },
+  modalSubtitle: {
+    fontSize: Typography.body.fontSize,
+    marginBottom: 24,
+  },
+  sliderContainer: {
+    marginBottom: 24,
+  },
+  sliderLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    alignItems: 'center',
+  },
+  sliderLabel: {
+    fontSize: Typography.body.fontSize,
+    fontWeight: '600',
+  },
+  sliderValue: {
+    fontSize: Typography.caption.fontSize,
+    fontWeight: '600',
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    padding: 20,
+    gap: 12,
+    borderTopWidth: 1,
+  },
+  resetButton: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  resetButtonText: {
+    fontSize: Typography.body.fontSize,
+    fontWeight: '600',
+  },
+  applyButton: {
+    flex: 2,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  applyButtonText: {
+    fontSize: Typography.body.fontSize,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
 
