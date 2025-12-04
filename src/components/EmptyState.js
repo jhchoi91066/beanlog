@@ -5,6 +5,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import PropTypes from 'prop-types';
+import { Ionicons } from '@expo/vector-icons';
 import Colors from '../constants/colors';
 import Typography from '../constants/typography';
 import CustomButton from './CustomButton';
@@ -25,12 +26,14 @@ const EmptyState = ({
 }) => {
   return (
     <View style={[styles.container, style]}>
-      {/* Optional icon */}
-      {icon && (
-        <View style={styles.iconContainer}>
-          {icon}
-        </View>
-      )}
+      {/* Icon (Default or Custom) */}
+      <View style={styles.iconContainer}>
+        {icon ? (
+          icon
+        ) : (
+          <Ionicons name="cafe-outline" size={48} color={Colors.stone300} />
+        )}
+      </View>
 
       {/* Message text */}
       <Text style={styles.message}>{message}</Text>

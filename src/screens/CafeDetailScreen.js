@@ -11,12 +11,15 @@ import {
   TouchableOpacity,
   Linking,
   Alert,
+  Animated,
+  ScrollView,
 } from 'react-native';
 import PropTypes from 'prop-types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Typography } from '../constants';
 import { LoadingSpinner, EmptyState, Tag, StarRating, MiniMap } from '../components';
+import AnimatedHeart from '../components/AnimatedHeart';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { getCafeById, toggleCafeBookmark } from '../services/cafeService';
@@ -43,13 +46,13 @@ const CafeDetailScreen = ({ route, navigation }) => {
   useEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <TouchableOpacity onPress={handleBookmark} style={{ marginRight: 16 }}>
-          <Ionicons
-            name={isBookmarked ? 'heart' : 'heart-outline'}
+        <View style={{ marginRight: 16 }}>
+          <AnimatedHeart
+            isLiked={isBookmarked}
+            onToggle={handleBookmark}
             size={24}
-            color={isBookmarked ? Colors.error : colors.textPrimary}
           />
-        </TouchableOpacity>
+        </View>
       ),
     });
   }, [navigation, isBookmarked]);
@@ -171,20 +174,22 @@ const CafeDetailScreen = ({ route, navigation }) => {
 
         {/* v0.2: F-PHOTO - Display photos if available, otherwise show default */}
         <View style={styles.photosContainer}>
-          {(item.photoUrls && item.photoUrls.length > 0 ? item.photoUrls : ['https://images.unsplash.com/photo-1497935586351-b67a49e012bf?q=80&w=1000&auto=format&fit=crop']).map((photoUrl, index) => (
-            <TouchableOpacity
-              key={`${item.id}-photo-${index}`}
-              onPress={() => {
-                // Full-screen image viewer will be implemented in future version
-              }}
-            >
-              <Image
-                source={{ uri: photoUrl }}
-                style={[styles.photoThumbnail, { backgroundColor: colors.stone200 }]}
-                resizeMode="cover"
-              />
-            </TouchableOpacity>
-          ))}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photosScrollContent}>
+            {(item.photoUrls && item.photoUrls.length > 0 ? item.photoUrls : ['https://images.unsplash.com/photo-1497935586351-b67a49e012bf?q=80&w=1000&auto=format&fit=crop']).map((photoUrl, index) => (
+              <TouchableOpacity
+                key={`${item.id}-photo-${index}`}
+                onPress={() => {
+                  // Full-screen image viewer will be implemented in future version
+                }}
+              >
+                <Image
+                  source={{ uri: photoUrl }}
+                  style={[styles.photoThumbnail, { backgroundColor: colors.stone200 }]}
+                  resizeMode="cover"
+                />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
 
         {/* Basic tags (맛 태그) */}
@@ -217,6 +222,22 @@ const CafeDetailScreen = ({ route, navigation }) => {
    * Render cafe header section
    * v0.2: F-ENHANCED - Added Instagram, parking, phone, closed days
    */
+  // Animation value for parallax effect
+  const scrollY = new Animated.Value(0);
+
+  // Parallax header styles
+  const headerHeight = 300;
+  const headerTranslateY = scrollY.interpolate({
+    inputRange: [-headerHeight, 0, headerHeight],
+    outputRange: [headerHeight / 2, 0, -headerHeight / 2],
+    extrapolate: 'clamp',
+  });
+  const headerScale = scrollY.interpolate({
+    inputRange: [-headerHeight, 0, headerHeight],
+    outputRange: [2, 1, 1],
+    extrapolate: 'clamp',
+  });
+
   /**
    * Render cafe header section
    * v0.3: F-ENHANCED - Improved hero section and added MiniMap
@@ -228,15 +249,24 @@ const CafeDetailScreen = ({ route, navigation }) => {
       <View style={[styles.cafeHeader, { backgroundColor: colors.backgroundWhite, borderBottomColor: colors.stone100 }]}>
         {/* Hero image - Cafe thumbnail with Gradient Overlay */}
         <View style={styles.heroContainer}>
-          {cafe.thumbnailUrl ? (
-            <Image
-              source={{ uri: cafe.thumbnailUrl }}
-              style={styles.heroImage}
-              resizeMode="cover"
-            />
-          ) : (
-            <View style={[styles.heroImage, { backgroundColor: colors.stone200 }]} />
-          )}
+          <Animated.View
+            style={[
+              styles.heroImageContainer,
+              {
+                transform: [{ translateY: headerTranslateY }, { scale: headerScale }],
+              },
+            ]}
+          >
+            {cafe.thumbnailUrl ? (
+              <Image
+                source={{ uri: cafe.thumbnailUrl }}
+                style={styles.heroImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={[styles.heroImage, { backgroundColor: colors.stone200 }]} />
+            )}
+          </Animated.View>
           <LinearGradient
             colors={['transparent', 'rgba(0,0,0,0.7)']}
             style={styles.heroGradient}
@@ -250,106 +280,109 @@ const CafeDetailScreen = ({ route, navigation }) => {
           </LinearGradient>
         </View>
 
-        {/* Location tags */}
-        {cafe.locationTags && cafe.locationTags.length > 0 && (
-          <View style={styles.locationTagsContainer}>
-            {cafe.locationTags.map((tag, index) => (
-              <Tag
-                key={`location-${index}`}
-                label={tag}
-                selected={false}
-                style={styles.locationTag}
-              />
-            ))}
+        {/* Content Container (White background to cover parallax image when scrolling up) */}
+        <View style={{ backgroundColor: colors.backgroundWhite, paddingTop: 20 }}>
+          {/* Location tags */}
+          {cafe.locationTags && cafe.locationTags.length > 0 && (
+            <View style={styles.locationTagsContainer}>
+              {cafe.locationTags.map((tag, index) => (
+                <Tag
+                  key={`location-${index}`}
+                  label={tag}
+                  selected={false}
+                  style={styles.locationTag}
+                />
+              ))}
+            </View>
+          )}
+
+          {/* MiniMap Section */}
+          <View style={styles.mapSection}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>위치</Text>
+            <MiniMap
+              coordinate={(() => {
+                if (cafe.mapx && cafe.mapy) {
+                  return {
+                    latitude: parseFloat(cafe.mapy) > 900 ? parseFloat(cafe.mapy) / 10000000 : parseFloat(cafe.mapy),
+                    longitude: parseFloat(cafe.mapx) > 200 ? parseFloat(cafe.mapx) / 10000000 : parseFloat(cafe.mapx)
+                  };
+                } else if (cafe.coordinates) {
+                  // Handle Firestore GeoPoint or object
+                  const lat = cafe.coordinates.latitude || cafe.coordinates._lat;
+                  const lng = cafe.coordinates.longitude || cafe.coordinates._long;
+                  if (lat && lng) return { latitude: lat, longitude: lng };
+                } else if (cafe.latitude && cafe.longitude) {
+                  return { latitude: cafe.latitude, longitude: cafe.longitude };
+                }
+                return null;
+              })()}
+              cafeName={cafe.name}
+              address={cafe.address}
+            />
           </View>
-        )}
 
-        {/* MiniMap Section */}
-        <View style={styles.mapSection}>
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>위치</Text>
-          <MiniMap
-            coordinate={(() => {
-              if (cafe.mapx && cafe.mapy) {
-                return {
-                  latitude: parseFloat(cafe.mapy) > 900 ? parseFloat(cafe.mapy) / 10000000 : parseFloat(cafe.mapy),
-                  longitude: parseFloat(cafe.mapx) > 200 ? parseFloat(cafe.mapx) / 10000000 : parseFloat(cafe.mapx)
-                };
-              } else if (cafe.coordinates) {
-                // Handle Firestore GeoPoint or object
-                const lat = cafe.coordinates.latitude || cafe.coordinates._lat;
-                const lng = cafe.coordinates.longitude || cafe.coordinates._long;
-                if (lat && lng) return { latitude: lat, longitude: lng };
-              } else if (cafe.latitude && cafe.longitude) {
-                return { latitude: cafe.latitude, longitude: cafe.longitude };
-              }
-              return null;
-            })()}
-            cafeName={cafe.name}
-            address={cafe.address}
-          />
-        </View>
+          {/* v0.2: F-ENHANCED - Enhanced cafe information */}
+          <View style={styles.enhancedInfoSection}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>정보</Text>
 
-        {/* v0.2: F-ENHANCED - Enhanced cafe information */}
-        <View style={styles.enhancedInfoSection}>
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>정보</Text>
+            {/* Phone number */}
+            {cafe.phoneNumber && (
+              <TouchableOpacity
+                style={styles.infoRow}
+                onPress={() => Linking.openURL(`tel:${cafe.phoneNumber}`)}
+              >
+                <Ionicons name="call-outline" size={20} color={Colors.brand} />
+                <Text style={[styles.infoText, { color: colors.stone600 }]}>{cafe.phoneNumber}</Text>
+              </TouchableOpacity>
+            )}
 
-          {/* Phone number */}
-          {cafe.phoneNumber && (
-            <TouchableOpacity
-              style={styles.infoRow}
-              onPress={() => Linking.openURL(`tel:${cafe.phoneNumber}`)}
-            >
-              <Ionicons name="call-outline" size={20} color={Colors.brand} />
-              <Text style={[styles.infoText, { color: colors.stone600 }]}>{cafe.phoneNumber}</Text>
-            </TouchableOpacity>
-          )}
+            {/* Instagram */}
+            {cafe.instagramHandle && (
+              <TouchableOpacity
+                style={styles.infoRow}
+                onPress={() => {
+                  const url = cafe.instagramUrl || `https://instagram.com/${cafe.instagramHandle.replace('@', '')}`;
+                  Linking.openURL(url);
+                }}
+              >
+                <Ionicons name="logo-instagram" size={20} color={Colors.accent} />
+                <Text style={[styles.infoText, styles.instagramText, { color: Colors.amber600 }]}>{cafe.instagramHandle}</Text>
+              </TouchableOpacity>
+            )}
 
-          {/* Instagram */}
-          {cafe.instagramHandle && (
-            <TouchableOpacity
-              style={styles.infoRow}
-              onPress={() => {
-                const url = cafe.instagramUrl || `https://instagram.com/${cafe.instagramHandle.replace('@', '')}`;
-                Linking.openURL(url);
-              }}
-            >
-              <Ionicons name="logo-instagram" size={20} color={Colors.accent} />
-              <Text style={[styles.infoText, styles.instagramText, { color: Colors.amber600 }]}>{cafe.instagramHandle}</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Parking info */}
-          {cafe.parkingInfo && (
-            <View style={styles.infoRow}>
-              <Ionicons name="car-outline" size={20} color={Colors.brand} />
-              <Text style={[styles.infoText, { color: colors.stone600 }]}>{cafe.parkingInfo}</Text>
-            </View>
-          )}
-
-          {/* Closed days */}
-          {cafe.closedDays && cafe.closedDays.length > 0 && (
-            <View style={styles.infoRow}>
-              <Ionicons name="time-outline" size={20} color={colors.stone400} />
-              <Text style={[styles.infoText, { color: colors.stone600 }]}>휴무일: {cafe.closedDays.join(', ')}</Text>
-            </View>
-          )}
-
-          {/* Naver Place Link */}
-          {cafe.naverLink && (
-            <TouchableOpacity
-              style={styles.infoRow}
-              onPress={() => Linking.openURL(cafe.naverLink)}
-            >
-              <View style={{ width: 20, alignItems: 'center' }}>
-                <Text style={{ fontSize: 14, fontWeight: '900', color: '#03C75A' }}>N</Text>
+            {/* Parking info */}
+            {cafe.parkingInfo && (
+              <View style={styles.infoRow}>
+                <Ionicons name="car-outline" size={20} color={Colors.brand} />
+                <Text style={[styles.infoText, { color: colors.stone600 }]}>{cafe.parkingInfo}</Text>
               </View>
-              <Text style={[styles.infoText, { color: colors.stone600, textDecorationLine: 'underline' }]}>상세 정보 보기</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+            )}
 
-        {/* Section divider */}
-        <View style={[styles.sectionDivider, { backgroundColor: colors.stone100 }]} />
+            {/* Closed days */}
+            {cafe.closedDays && cafe.closedDays.length > 0 && (
+              <View style={styles.infoRow}>
+                <Ionicons name="time-outline" size={20} color={colors.stone400} />
+                <Text style={[styles.infoText, { color: colors.stone600 }]}>휴무일: {cafe.closedDays.join(', ')}</Text>
+              </View>
+            )}
+
+            {/* Naver Place Link */}
+            {cafe.naverLink && (
+              <TouchableOpacity
+                style={styles.infoRow}
+                onPress={() => Linking.openURL(cafe.naverLink)}
+              >
+                <View style={{ width: 20, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 14, fontWeight: '900', color: '#03C75A' }}>N</Text>
+                </View>
+                <Text style={[styles.infoText, { color: colors.stone600, textDecorationLine: 'underline' }]}>상세 정보 보기</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Section divider */}
+          <View style={[styles.sectionDivider, { backgroundColor: colors.stone100 }]} />
+        </View>
       </View>
     );
   };
@@ -376,14 +409,17 @@ const CafeDetailScreen = ({ route, navigation }) => {
   if (!cafe) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <EmptyState message="카페 정보를 불러올 수 없습니다" />
+        <EmptyState
+          message="카페 정보를 불러올 수 없습니다"
+          icon={<Ionicons name="alert-circle-outline" size={48} color={Colors.stone300} />}
+        />
       </View>
     );
   }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <FlatList
+      <Animated.FlatList
         data={reviews}
         renderItem={renderReviewItem}
         keyExtractor={(item) => item.id}
@@ -395,11 +431,19 @@ const CafeDetailScreen = ({ route, navigation }) => {
         )}
         ListEmptyComponent={() => (
           <View style={[styles.emptyReviews, { backgroundColor: colors.backgroundWhite }]}>
-            <EmptyState message="아직 리뷰가 없습니다" />
+            <EmptyState
+              message="아직 리뷰가 없습니다"
+              icon={<Ionicons name="chatbubble-outline" size={48} color={Colors.stone300} />}
+            />
           </View>
         )}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true }
+        )}
+        scrollEventThrottle={16}
       />
     </View>
   );
@@ -415,7 +459,7 @@ const styles = StyleSheet.create({
   },
   // Cafe header section
   cafeHeader: {
-    paddingBottom: 20,
+    // paddingBottom: 20, // Removed padding to allow content to sit flush
     backgroundColor: Colors.backgroundWhite,
     borderBottomWidth: 1,
     borderBottomColor: Colors.stone100,
@@ -423,8 +467,17 @@ const styles = StyleSheet.create({
   heroContainer: {
     width: '100%',
     height: 300,
-    marginBottom: 20,
+    marginBottom: 0, // Removed margin
     position: 'relative',
+    overflow: 'hidden', // Ensure image doesn't bleed out
+  },
+  heroImageContainer: {
+    width: '100%',
+    height: '100%',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
   },
   heroImage: {
     width: '100%',
@@ -438,6 +491,7 @@ const styles = StyleSheet.create({
     height: 120,
     justifyContent: 'flex-end',
     padding: 20,
+    zIndex: 1, // Ensure text is above image
   },
   heroCafeName: {
     ...Typography.h1,
@@ -538,14 +592,15 @@ const styles = StyleSheet.create({
   },
   // v0.2: F-PHOTO - Photo display styles
   photosContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
     marginBottom: 12,
   },
+  photosScrollContent: {
+    gap: 8,
+    paddingRight: 20, // Add padding for last item
+  },
   photoThumbnail: {
-    width: 80,
-    height: 80,
+    width: 120, // Larger thumbnail
+    height: 120,
     borderRadius: 8,
     backgroundColor: Colors.stone200,
   },

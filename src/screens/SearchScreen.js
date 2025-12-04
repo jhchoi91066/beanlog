@@ -190,6 +190,15 @@ const SearchScreen = ({ navigation, route }) => {
           </View>
         ) : (
           <>
+            {cafesWithCoordinates.length === 0 && (
+              <View style={styles.emptyResults}>
+                <EmptyState
+                  message="검색 결과가 없습니다"
+                  icon={<Ionicons name="search-outline" size={48} color={Colors.stone300} />}
+                />
+                <Text style={styles.emptyResultsSubtext}>다른 검색어로 다시 시도해보세요</Text>
+              </View>
+            )}
             {/* Naver Map View */}
             <NaverMapView
               cafes={cafesWithCoordinates}
@@ -409,26 +418,29 @@ const SearchScreen = ({ navigation, route }) => {
               <Text style={styles.sectionTitle}>실시간 인기 태그</Text>
             </View>
           </View>
-          <View style={styles.trendingList}>
+          <View style={styles.trendingChipsContainer}>
             {trendingKeywords.map((keyword, index) => (
               <TouchableOpacity
                 key={index}
-                style={styles.trendingItem}
+                style={[
+                  styles.trendingChip,
+                  {
+                    backgroundColor: index < 3 ? Colors.amber50 : colors.stone100,
+                    borderColor: index < 3 ? Colors.amber200 : 'transparent',
+                    borderWidth: index < 3 ? 1 : 0
+                  }
+                ]}
                 onPress={() => handleTrendingPress(keyword)}
               >
-                <View style={styles.trendingItemLeft}>
-                  <Text
-                    style={[
-                      styles.trendingRank,
-                      { color: index < 3 ? colors.brand : colors.textTertiary },
-                      index < 3 && styles.trendingRankTop,
-                    ]}
-                  >
-                    {index + 1}
-                  </Text>
-                  <Text style={[styles.trendingKeyword, { color: colors.textPrimary }]}>#{keyword}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+                <Text
+                  style={[
+                    styles.trendingChipRank,
+                    { color: index < 3 ? Colors.amber600 : colors.textTertiary }
+                  ]}
+                >
+                  {index + 1}
+                </Text>
+                <Text style={[styles.trendingChipText, { color: colors.textPrimary }]}>#{keyword}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -808,11 +820,33 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   sectionHeader: {
+    marginBottom: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  trendingChipsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  trendingChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
   },
+  trendingChipRank: {
+    fontSize: Typography.caption.fontSize,
+    fontWeight: '700',
+  },
+  trendingChipText: {
+    fontSize: Typography.body.fontSize,
+    fontWeight: '500',
+  },
+
   sectionTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -974,9 +1008,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
     paddingVertical: 60,
   },
   loadingText: {

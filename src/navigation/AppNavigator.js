@@ -1,13 +1,14 @@
 // App Navigator - 전체 네비게이션 구조
 // 문서 참조: The Blueprint - G-0.2 네비게이션, G-0.4 Onboarding
 
-import { useState, useEffect } from 'react';
-import { View } from 'react-native';
+import { useState, useEffect, useRef } from 'react';
+import { View, Animated } from 'react-native';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
 
 import { useAuth, useTheme } from '../contexts';
 import {
@@ -83,6 +84,38 @@ const AppNavigator = () => {
     },
   };
 
+  // Animated Tab Icon Component
+  const AnimatedTabBarIcon = ({ focused, name, size, color }) => {
+    // We need to use a ref to persist the animated value across renders
+    // However, since this component might be re-mounted, we need to be careful.
+    // React Navigation re-renders the icon component on focus change.
+    const scale = useRef(new Animated.Value(1)).current;
+
+    useEffect(() => {
+      if (focused) {
+        Animated.spring(scale, {
+          toValue: 1.2,
+          friction: 4,
+          tension: 50,
+          useNativeDriver: true,
+        }).start();
+      } else {
+        Animated.spring(scale, {
+          toValue: 1,
+          friction: 4,
+          tension: 50,
+          useNativeDriver: true,
+        }).start();
+      }
+    }, [focused]);
+
+    return (
+      <Animated.View style={{ transform: [{ scale }] }}>
+        <Ionicons name={name} size={size} color={color} />
+      </Animated.View>
+    );
+  };
+
   // Tab Navigator with dynamic colors
   const MainTabs = () => {
     return (
@@ -97,10 +130,6 @@ const AppNavigator = () => {
               iconName = focused ? 'search' : 'search-outline';
             } else if (route.name === 'Record') {
               iconName = 'add-circle'; // Always filled for highlighted effect
-              // } else if (route.name === 'Explore') {
-              //   iconName = focused ? 'compass' : 'compass-outline';
-              // } else if (route.name === 'Community') {
-              //   iconName = focused ? 'people' : 'people-outline';
             } else if (route.name === 'Ranking') {
               iconName = focused ? 'trophy' : 'trophy-outline';
             } else if (route.name === 'MyPage') {
@@ -129,7 +158,7 @@ const AppNavigator = () => {
               );
             }
 
-            return <Ionicons name={iconName} size={size} color={color} />;
+            return <AnimatedTabBarIcon focused={focused} name={iconName} size={size} color={color} />;
           },
           tabBarActiveTintColor: colors.accent,
           tabBarInactiveTintColor: colors.textTertiary,
@@ -150,7 +179,12 @@ const AppNavigator = () => {
         <Tab.Screen
           name="Home"
           component={HomeStack}
-          options={{ tabBarLabel: '홈' }}
+          options={{
+            tabBarLabel: '홈',
+            listeners: {
+              tabPress: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
+            },
+          }}
         />
         <Tab.Screen
           name="Search"
@@ -159,6 +193,9 @@ const AppNavigator = () => {
             tabBarLabel: '검색',
             headerShown: true,
             headerTitle: '검색',
+            listeners: {
+              tabPress: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
+            },
             ...screenOptions,
           }}
         />
@@ -169,6 +206,9 @@ const AppNavigator = () => {
             tabBarLabel: '',
             headerShown: true,
             headerTitle: '리뷰 작성',
+            listeners: {
+              tabPress: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium),
+            },
             ...screenOptions,
           }}
         />
@@ -179,6 +219,9 @@ const AppNavigator = () => {
             tabBarLabel: '랭킹',
             headerShown: true,
             headerTitle: '커피 랭킹',
+            listeners: {
+              tabPress: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
+            },
             ...screenOptions,
           }}
         />
@@ -188,6 +231,9 @@ const AppNavigator = () => {
           options={{
             tabBarLabel: '마이',
             headerShown: false,
+            listeners: {
+              tabPress: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
+            },
           }}
         />
       </Tab.Navigator>

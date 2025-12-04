@@ -630,6 +630,9 @@ const FeedHomeScreen = ({ navigation }) => {
                   navigation.navigate('CafeDetail', { cafeId: item.cafeId });
                 }
               }}
+              onCommentPress={() => {
+                navigation.navigate('PostDetail', { post: item });
+              }}
             />
           </View>
         )}
@@ -638,6 +641,11 @@ const FeedHomeScreen = ({ navigation }) => {
         refreshing={refreshing}
         onRefresh={handleRefresh}
         scrollEnabled={false}
+        ListHeaderComponent={
+          <>
+            {renderHeader()}
+          </>
+        }
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Text style={[styles.emptyStateText, { color: colors.textSecondary }]}>

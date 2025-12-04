@@ -10,10 +10,13 @@ import {
     KeyboardAvoidingView,
     Platform,
     Alert,
+    Image,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { createPost, updatePost } from '../services/communityService';
 import { useAuth } from '../contexts/AuthContext';
+import InteractiveFlavorRadar from '../components/InteractiveFlavorRadar';
 
 const Colors = {
     background: '#FAFAF9',
@@ -43,6 +46,17 @@ const WritePostScreen = ({ navigation, route }) => {
     const { user } = useAuth();
     const [submitting, setSubmitting] = useState(false);
 
+    // Initial flavor data
+    const [flavorData, setFlavorData] = useState([
+        { subject: '산미', A: 3, fullMark: 5 },
+        { subject: '단맛', A: 3, fullMark: 5 },
+        { subject: '바디', A: 3, fullMark: 5 },
+        { subject: '쓴맛', A: 3, fullMark: 5 },
+        { subject: '향', A: 3, fullMark: 5 },
+    ]);
+
+    const [images, setImages] = useState([]);
+
     // Initialize form with post data if in edit mode
     useEffect(() => {
         if (editMode && post) {
@@ -50,8 +64,34 @@ const WritePostScreen = ({ navigation, route }) => {
             setContent(post.content || '');
             setSelectedCategory(post.type || 'discussion');
             setTags(post.tags?.join(', ') || '');
+            setImages(post.images || []);
         }
     }, [editMode, post]);
+
+    const pickImages = async () => {
+        // Request permission
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+            Alert.alert('권한 필요', '사진을 업로드하려면 갤러리 접근 권한이 필요합니다.');
+            return;
+        }
+
+        let result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaType.Images,
+            allowsMultipleSelection: true,
+            selectionLimit: 5 - images.length, // Limit total to 5
+            quality: 0.8,
+        });
+
+        if (!result.canceled) {
+            const newImages = result.assets.map(asset => asset.uri);
+            setImages([...images, ...newImages]);
+        }
+    };
+
+    const removeImage = (index) => {
+        setImages(images.filter((_, i) => i !== index));
+    };
 
     const handleSubmit = async () => {
         if (!title.trim() || !content.trim()) {
@@ -92,6 +132,13 @@ const WritePostScreen = ({ navigation, route }) => {
                         name: user?.displayName || '익명 사용자',
                         avatar: user?.photoURL || 'https://i.pravatar.cc/150?u=default',
                         level: 'Barista', // Default level
+                    },
+                    flavorProfile: {
+                        acidity: flavorData.find(d => d.subject === '산미').A,
+                        sweetness: flavorData.find(d => d.subject === '단맛').A,
+                        body: flavorData.find(d => d.subject === '바디').A,
+                        bitterness: flavorData.find(d => d.subject === '쓴맛').A,
+                        aroma: flavorData.find(d => d.subject === '향').A,
                     },
                     createdAt: new Date().toISOString(),
                 };
@@ -178,6 +225,51 @@ const WritePostScreen = ({ navigation, route }) => {
                             multiline
                             textAlignVertical="top"
                         />
+                    </View>
+
+                    {/* Image Picker Section */}
+                    <View style={styles.section}>
+                        <View style={styles.sectionHeader}>
+                            <Text style={styles.label}>사진 첨부 ({images.length}/5)</Text>
+                            {images.length < 5 && (
+                                <TouchableOpacity onPress={pickImages} style={styles.addImageButton}>
+                                    <Ionicons name="camera" size={20} color={Colors.brand} />
+                                    <Text style={styles.addImageText}>추가</Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
+
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageScroll}>
+                            {images.map((uri, index) => (
+                                <View key={index} style={styles.imageContainer}>
+                                    <Image source={{ uri }} style={styles.previewImage} />
+                                    <TouchableOpacity
+                                        style={styles.removeImageButton}
+                                        onPress={() => removeImage(index)}
+                                    >
+                                        <Ionicons name="close-circle" size={24} color="#EF4444" />
+                                    </TouchableOpacity>
+                                </View>
+                            ))}
+                            {images.length === 0 && (
+                                <TouchableOpacity onPress={pickImages} style={styles.emptyImagePlaceholder}>
+                                    <Ionicons name="images-outline" size={32} color={Colors.border} />
+                                    <Text style={styles.placeholderText}>사진을 추가해보세요</Text>
+                                </TouchableOpacity>
+                            )}
+                        </ScrollView>
+                    </View>
+
+                    {/* Flavor Profile Radar */}
+                    <View style={styles.section}>
+                        <Text style={styles.label}>맛 프로필 설정 (드래그하여 조절)</Text>
+                        <View style={styles.radarContainer}>
+                            <InteractiveFlavorRadar
+                                data={flavorData}
+                                onDataChange={setFlavorData}
+                                size={280}
+                            />
+                        </View>
                     </View>
 
                     {/* Tags Input */}
@@ -288,6 +380,67 @@ const styles = StyleSheet.create({
         color: Colors.textSecondary,
         marginTop: 6,
         marginLeft: 4,
+    },
+    radarContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: Colors.background,
+        borderRadius: 16,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: Colors.border,
+    },
+    sectionHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    addImageButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+    },
+    addImageText: {
+        color: Colors.brand,
+        fontWeight: '600',
+        fontSize: 14,
+    },
+    imageScroll: {
+        flexDirection: 'row',
+    },
+    imageContainer: {
+        marginRight: 12,
+        position: 'relative',
+    },
+    previewImage: {
+        width: 100,
+        height: 100,
+        borderRadius: 8,
+        backgroundColor: Colors.border,
+    },
+    removeImageButton: {
+        position: 'absolute',
+        top: -8,
+        right: -8,
+        backgroundColor: '#FFF',
+        borderRadius: 12,
+    },
+    emptyImagePlaceholder: {
+        width: 100,
+        height: 100,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        borderStyle: 'dashed',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: Colors.background,
+    },
+    placeholderText: {
+        fontSize: 12,
+        color: Colors.textSecondary,
+        marginTop: 4,
     },
 });
 

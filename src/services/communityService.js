@@ -2,20 +2,20 @@
 // Integrated with Firebase Firestore
 
 import {
-  collection,
-  doc,
-  addDoc,
-  getDoc,
-  getDocs,
-  updateDoc,
-  deleteDoc,
-  increment,
-  query,
-  orderBy,
-  limit,
-  arrayUnion,
-  arrayRemove,
-  serverTimestamp
+    collection,
+    doc,
+    addDoc,
+    getDoc,
+    getDocs,
+    updateDoc,
+    deleteDoc,
+    increment,
+    query,
+    orderBy,
+    limit,
+    arrayUnion,
+    arrayRemove,
+    serverTimestamp
 } from 'firebase/firestore';
 import { db, auth } from './firebase';
 import { Share } from 'react-native';
@@ -125,19 +125,19 @@ const MOCK_POSTS = [
  * Helper: Convert Firestore timestamp to "time ago" string
  */
 const getTimeAgo = (timestamp) => {
-  if (!timestamp) return '방금 전';
+    if (!timestamp) return '방금 전';
 
-  const now = new Date();
-  const postDate = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-  const diffMs = now - postDate;
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
+    const now = new Date();
+    const postDate = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const diffMs = now - postDate;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
 
-  if (diffMins < 1) return '방금 전';
-  if (diffMins < 60) return `${diffMins}분 전`;
-  if (diffHours < 24) return `${diffHours}시간 전`;
-  return `${diffDays}일 전`;
+    if (diffMins < 1) return '방금 전';
+    if (diffMins < 60) return `${diffMins}분 전`;
+    if (diffHours < 24) return `${diffHours}시간 전`;
+    return `${diffDays}일 전`;
 };
 
 /**
@@ -368,7 +368,7 @@ export const incrementViews = async (postId) => {
             views: increment(1),
         });
     } catch (error) {
-        console.error('Error incrementing views:', error);
+        console.log('View increment skipped (likely permission or mock data):', error.message);
         // Don't throw - views are not critical
     }
 };

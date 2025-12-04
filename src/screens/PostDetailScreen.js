@@ -6,7 +6,6 @@ import {
     ScrollView,
     TouchableOpacity,
     Image,
-    SafeAreaView,
     TextInput,
     KeyboardAvoidingView,
     Platform,
@@ -14,7 +13,10 @@ import {
     ActivityIndicator,
     ActionSheetIOS,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { Ionicons } from '@expo/vector-icons';
+import AnimatedHeart from '../components/AnimatedHeart';
 import {
     toggleLike,
     toggleBookmark,
@@ -53,7 +55,10 @@ const PostDetailScreen = ({ route, navigation }) => {
     // Load comments and increment views on mount
     useEffect(() => {
         loadComments();
-        incrementViews(post.id);
+        // Only increment views for real posts
+        if (post.id && !post.id.toString().startsWith('mock-')) {
+            incrementViews(post.id).catch(err => console.log('View increment skipped:', err.message));
+        }
     }, [post.id]);
 
     const loadComments = async () => {
@@ -303,18 +308,18 @@ const PostDetailScreen = ({ route, navigation }) => {
                     </View>
 
                     <View style={styles.statsRow}>
-                        <TouchableOpacity onPress={handleLike} style={styles.statButton}>
-                            <Ionicons
-                                name={isLiked ? "thumbs-up" : "thumbs-up-outline"}
-                                size={20}
-                                color={isLiked ? Colors.brand : Colors.textSecondary}
+                        <View style={styles.statButton}>
+                            <AnimatedHeart
+                                isLiked={isLiked}
+                                onToggle={handleLike}
+                                size={24}
                             />
                             <Text style={[styles.statText, isLiked && { color: Colors.brand }]}>
                                 {likesCount}
                             </Text>
-                        </TouchableOpacity>
+                        </View>
                         <View style={styles.statItem}>
-                            <Ionicons name="chatbubble-outline" size={20} color={Colors.textSecondary} />
+                            <Ionicons name="chatbubble-outline" size={24} color={Colors.textSecondary} />
                             <Text style={styles.statText}>{commentsCount}</Text>
                         </View>
                         <View style={styles.statItem}>

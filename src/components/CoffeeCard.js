@@ -18,13 +18,15 @@ import Colors from '../constants/colors';
 import Typography from '../constants/typography';
 import FlavorRadar from './FlavorRadar';
 import Tag from './Tag';
+import FlavorProfile from './FlavorProfile';
+import AnimatedHeart from './AnimatedHeart';
 import { getCafePlaceholderImage } from '../utils/imageUtils';
 import { useTheme } from '../contexts/ThemeContext';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = width - 32; // 16px padding on each side
 
-const CoffeeCard = ({ post, onPress, index = 0 }) => {
+const CoffeeCard = ({ post, onPress, onCommentPress, index = 0 }) => {
   const { colors } = useTheme();
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current; // Initial opacity: 0
@@ -34,6 +36,7 @@ const CoffeeCard = ({ post, onPress, index = 0 }) => {
 
   // Like button animation states
   const [isLiked, setIsLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(post.likes);
   const likeScaleAnim = useRef(new Animated.Value(1)).current;
   const likeColorAnim = useRef(new Animated.Value(0)).current;
 
@@ -118,7 +121,9 @@ const CoffeeCard = ({ post, onPress, index = 0 }) => {
 
   // Like button press animation
   const handleLikePress = () => {
-    setIsLiked(!isLiked);
+    const newLikedState = !isLiked;
+    setIsLiked(newLikedState);
+    setLikeCount(prev => newLikedState ? prev + 1 : prev - 1);
 
     Animated.sequence([
       // Scale down
@@ -145,9 +150,9 @@ const CoffeeCard = ({ post, onPress, index = 0 }) => {
 
     // Color transition animation
     Animated.timing(likeColorAnim, {
-      toValue: isLiked ? 0 : 1,
+      toValue: newLikedState ? 1 : 0, // Fixed logic: 1 if liked, 0 if not
       duration: 200,
-      useNativeDriver: false, // Color animation doesn't support native driver
+      useNativeDriver: false,
     }).start();
   };
 
@@ -324,31 +329,50 @@ const CoffeeCard = ({ post, onPress, index = 0 }) => {
           <View style={styles.interactions}>
             {/* Like Button with animation */}
             <Animated.View style={{ transform: [{ scale: likeScaleAnim }] }}>
-              <TouchableOpacity
-                style={styles.interactionButton}
-                onPress={handleLikePress}
-                activeOpacity={1}
-              >
-                <Ionicons
-                  name={isLiked ? 'heart' : 'heart-outline'}
-                  size={16}
-                  color={isLiked ? Colors.red500 : colors.textTertiary}
+              <View style={styles.interactionButton}>
+                {/* Like Button with Animation */}
+                <AnimatedHeart
+                  isLiked={isLiked}
+                  onToggle={handleLikePress}
+                  size={24}
                 />
-                <Text style={[styles.interactionText, { color: colors.textTertiary }]}>{post.likes}</Text>
-              </TouchableOpacity>
+                <Text style={[styles.interactionText, { color: colors.textTertiary }]}>{likeCount}</Text>
+              </View>
             </Animated.View>
 
             {/* Comment Button with animation */}
             <Animated.View style={{ transform: [{ scale: commentScaleAnim }] }}>
               <TouchableOpacity
                 style={styles.interactionButton}
-                onPressIn={handleCommentPressIn}
-                onPressOut={handleCommentPressOut}
+                onPress={() => {
+                  // Bouncy animation like Heart
+                  Animated.sequence([
+                    Animated.timing(commentScaleAnim, {
+                      toValue: 0.8,
+                      duration: 100,
+                      useNativeDriver: true,
+                    }),
+                    Animated.spring(commentScaleAnim, {
+                      toValue: 1.2,
+                      friction: 3,
+                      tension: 40,
+                      useNativeDriver: true,
+                    }),
+                    Animated.spring(commentScaleAnim, {
+                      toValue: 1,
+                      friction: 3,
+                      tension: 40,
+                      useNativeDriver: true,
+                    }),
+                  ]).start();
+
+                  if (onCommentPress) onCommentPress();
+                }}
                 activeOpacity={1}
               >
                 <Ionicons
                   name="chatbubble-outline"
-                  size={16}
+                  size={24}
                   color={colors.textTertiary}
                 />
                 <Text style={[styles.interactionText, { color: colors.textTertiary }]}>{post.comments}</Text>

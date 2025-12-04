@@ -24,6 +24,7 @@ import FlavorProfile from '../components/FlavorProfile';
 import { LoadingSpinner } from '../components';
 import SkeletonLoader from '../components/SkeletonLoader';
 import CoffeeCardSkeleton from '../components/CoffeeCardSkeleton';
+import PassportStamp from '../components/PassportStamp';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts';
 import { getReviewsByUser, deleteReview } from '../services/reviewService';
@@ -610,6 +611,39 @@ const MyPageScreen = ({ navigation }) => {
             </View>
           </View>
 
+          {/* Stamps Section */}
+          <View style={styles.stampsSection}>
+            <Text style={[styles.stampsTitle, { color: colors.textSecondary }]}>ACHIEVEMENTS</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.stampsScroll}>
+              <PassportStamp
+                label="First Cup"
+                icon="cafe"
+                date={statistics.totalCoffees > 0 ? "2023.12" : null}
+                isLocked={statistics.totalCoffees === 0}
+                color={Colors.brand}
+              />
+              <PassportStamp
+                label="Explorer"
+                icon="compass"
+                date={statistics.totalCoffees > 5 ? "2024.01" : null}
+                isLocked={statistics.totalCoffees <= 5}
+                color={Colors.blue}
+              />
+              <PassportStamp
+                label="Master"
+                icon="trophy"
+                isLocked={statistics.totalCoffees <= 10}
+                color={Colors.amber600}
+              />
+              <PassportStamp
+                label="Social"
+                icon="people"
+                isLocked={true}
+                color={Colors.purple}
+              />
+            </ScrollView>
+          </View>
+
           <TouchableOpacity
             style={[styles.shareButton, { backgroundColor: colors.stone100 }]}
             onPress={handleSharePassport}
@@ -764,6 +798,23 @@ const styles = StyleSheet.create({
   passportStatDivider: {
     width: 1,
     height: '100%',
+  },
+  stampsSection: {
+    marginBottom: 24,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: Colors.stone200,
+  },
+  stampsTitle: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  stampsScroll: {
+    paddingHorizontal: 4,
+    gap: 8,
   },
   shareButton: {
     flexDirection: 'row',

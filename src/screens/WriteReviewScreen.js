@@ -23,8 +23,7 @@ import StarRating from '../components/StarRating';
 import Tag from '../components/Tag';
 import CustomButton from '../components/CustomButton';
 import LoadingSpinner from '../components/LoadingSpinner';
-import Slider from '../components/Slider';
-import FlavorRadar from '../components/FlavorRadar';
+import InteractiveFlavorRadar from '../components/InteractiveFlavorRadar';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { createReview, updateReview } from '../services/reviewService';
@@ -556,7 +555,7 @@ const WriteReviewScreen = ({ navigation, route }) => {
           {/* Radar Chart */}
           <View style={styles.flavorVisualizationContainer}>
             <View style={{ alignItems: 'center', paddingVertical: 10 }}>
-              <FlavorRadar
+              <InteractiveFlavorRadar
                 data={[
                   { subject: '산미', A: acidity, fullMark: 5 },
                   { subject: '단맛', A: sweetness, fullMark: 5 },
@@ -564,18 +563,24 @@ const WriteReviewScreen = ({ navigation, route }) => {
                   { subject: '쓴맛', A: bitterness, fullMark: 5 },
                   { subject: '향', A: aroma, fullMark: 5 },
                 ]}
-                size={220}
+                onDataChange={(newData) => {
+                  // Map back to individual states
+                  newData.forEach(item => {
+                    switch (item.subject) {
+                      case '산미': setAcidity(item.A); break;
+                      case '단맛': setSweetness(item.A); break;
+                      case '바디': setBody(item.A); break;
+                      case '쓴맛': setBitterness(item.A); break;
+                      case '향': setAroma(item.A); break;
+                    }
+                  });
+                }}
+                size={280}
               />
             </View>
-          </View>
-
-          {/* Sliders */}
-          <View style={styles.slidersContainer}>
-            <Slider label="산미" value={acidity} onValueChange={setAcidity} minLabel="낮음" maxLabel="높음" />
-            <Slider label="단맛" value={sweetness} onValueChange={setSweetness} minLabel="낮음" maxLabel="높음" />
-            <Slider label="바디" value={body} onValueChange={setBody} minLabel="가벼움" maxLabel="묵직함" />
-            <Slider label="쓴맛" value={bitterness} onValueChange={setBitterness} minLabel="낮음" maxLabel="높음" />
-            <Slider label="향" value={aroma} onValueChange={setAroma} minLabel="약함" maxLabel="강함" />
+            <Text style={[styles.helperText, { textAlign: 'center', marginTop: 8, color: colors.textSecondary }]}>
+              그래프의 점을 드래그하여 맛을 조절해보세요
+            </Text>
           </View>
         </View>
 
