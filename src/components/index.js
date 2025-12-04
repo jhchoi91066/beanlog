@@ -11,3 +11,6 @@ export { default as CoffeeCard } from './CoffeeCard';
 export { default as FlavorProfile } from './FlavorProfile';
 export { default as FlavorRadar } from './FlavorRadar';
 export { default as MiniMap } from './MiniMap';
+export { default as FeaturedCarousel } from './FeaturedCarousel';
+export { default as SkeletonLoader } from './SkeletonLoader';
+export { default as CoffeeCardSkeleton } from './CoffeeCardSkeleton';

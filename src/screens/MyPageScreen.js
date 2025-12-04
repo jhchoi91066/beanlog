@@ -22,6 +22,8 @@ import Typography from '../constants/typography';
 import CoffeeCard from '../components/CoffeeCard';
 import FlavorProfile from '../components/FlavorProfile';
 import { LoadingSpinner } from '../components';
+import SkeletonLoader from '../components/SkeletonLoader';
+import CoffeeCardSkeleton from '../components/CoffeeCardSkeleton';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts';
 import { getReviewsByUser, deleteReview } from '../services/reviewService';
@@ -507,9 +509,48 @@ const MyPageScreen = ({ navigation }) => {
     return null;
   };
 
-  // Show loading spinner while fetching data
+  // Show loading skeleton while fetching data
   if (loading) {
-    return <LoadingSpinner visible={true} fullScreen={false} />;
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Passport Card Skeleton */}
+          <View style={[styles.passportCard, { backgroundColor: colors.backgroundWhite, borderColor: colors.border }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 }}>
+              <SkeletonLoader width={150} height={24} borderRadius={4} />
+              <SkeletonLoader width={24} height={24} borderRadius={12} />
+            </View>
+            <View style={{ flexDirection: 'row', marginBottom: 24, gap: 16 }}>
+              <SkeletonLoader width={80} height={80} borderRadius={40} />
+              <View style={{ flex: 1, gap: 8, justifyContent: 'center' }}>
+                <SkeletonLoader width={120} height={20} borderRadius={4} />
+                <SkeletonLoader width={100} height={16} borderRadius={4} />
+                <SkeletonLoader width={180} height={14} borderRadius={4} />
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 24 }}>
+              <SkeletonLoader width={80} height={40} borderRadius={4} />
+              <SkeletonLoader width={80} height={40} borderRadius={4} />
+              <SkeletonLoader width={80} height={40} borderRadius={4} />
+            </View>
+            <SkeletonLoader width="100%" height={48} borderRadius={8} />
+          </View>
+
+          {/* Tabs Skeleton */}
+          <View style={{ marginTop: 24, paddingHorizontal: 16, flexDirection: 'row', gap: 32, borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 12 }}>
+            <SkeletonLoader width={80} height={24} borderRadius={4} />
+            <SkeletonLoader width={80} height={24} borderRadius={4} />
+          </View>
+
+          {/* List Skeleton */}
+          <View style={{ marginTop: 24, paddingHorizontal: 16, gap: 16 }}>
+            {[1, 2].map((key) => (
+              <CoffeeCardSkeleton key={key} />
+            ))}
+          </View>
+        </ScrollView>
+      </View>
+    );
   }
 
   return (
@@ -573,7 +614,6 @@ const MyPageScreen = ({ navigation }) => {
             style={[styles.shareButton, { backgroundColor: colors.stone100 }]}
             onPress={handleSharePassport}
           >
-            <Ionicons name="share-social" size={16} color={colors.textPrimary} />
             <Text style={[styles.shareButtonText, { color: colors.textPrimary }]}>여권 공유하기</Text>
           </TouchableOpacity>
         </View>

@@ -31,6 +31,7 @@ import { createReview, updateReview } from '../services/reviewService';
 import { getAllCafes, createCafe } from '../services/cafeService';
 import { uploadMultipleReviewImages } from '../services/imageService';
 import { searchNaverPlaces } from '../services/naverSearchService';
+import { getCafePlaceholderImage } from '../utils/imageUtils';
 
 // Combined Tags for Tasting Note
 const FLAVOR_TAGS = [
@@ -268,6 +269,9 @@ const WriteReviewScreen = ({ navigation, route }) => {
 
       if (selectedCafe.isNaverResult) {
         try {
+          // Generate placeholder image based on tags and coffee name
+          const placeholderImage = getCafePlaceholderImage(selectedTags, coffeeName);
+
           const newCafeData = {
             name: selectedCafe.name,
             address: selectedCafe.address,
@@ -277,6 +281,7 @@ const WriteReviewScreen = ({ navigation, route }) => {
             mapx: selectedCafe.mapx,
             mapy: selectedCafe.mapy,
             naverLink: selectedCafe.link || '',
+            thumbnailUrl: placeholderImage, // Use generated placeholder
             createdAt: new Date(),
             source: 'naver_search',
           };

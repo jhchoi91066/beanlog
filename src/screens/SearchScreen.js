@@ -29,6 +29,7 @@ import {
 import { getAllCafes } from '../services/cafeService';
 import NaverMapView from '../components/NaverMapView';
 import { useTheme } from '../contexts';
+import SkeletonLoader from '../components/SkeletonLoader';
 
 const { width, height } = Dimensions.get('window');
 
@@ -265,8 +266,17 @@ const SearchScreen = ({ navigation, route }) => {
         <View style={styles.resultsContainer}>
           {loading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={Colors.amber600} />
-              <Text style={styles.loadingText}>검색 중...</Text>
+              {[1, 2, 3, 4, 5].map((key) => (
+                <View key={key} style={[styles.cafeResultItem, { backgroundColor: colors.backgroundWhite, borderColor: colors.border, opacity: 1 }]}>
+                  <View style={styles.cafeResultContent}>
+                    <SkeletonLoader width={40} height={40} borderRadius={20} style={{ marginRight: 12 }} />
+                    <View style={{ gap: 4 }}>
+                      <SkeletonLoader width={120} height={20} borderRadius={4} />
+                      <SkeletonLoader width={200} height={14} borderRadius={4} />
+                    </View>
+                  </View>
+                </View>
+              ))}
             </View>
           ) : (
             <>

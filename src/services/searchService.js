@@ -22,16 +22,40 @@ const MAX_RECENT_SEARCHES = 10;
  */
 export const searchCafes = async (searchText, limitCount = 20) => {
   try {
-    // Fetch all cafes (for v0.2, this is acceptable with small dataset)
+    // 1. Fetch all cafes
     const cafesRef = collection(db, 'cafes');
-    const q = query(cafesRef, limit(100));
+    const cafesSnapshot = await getDocs(query(cafesRef, limit(100)));
+    const cafes = cafesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-    const snapshot = await getDocs(q);
-    const cafes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    // 2. Fetch recent reviews to search tags/content
+    const reviewsRef = collection(db, 'reviews');
+    // Fetching more reviews to ensure we cover enough ground for tags
+    const reviewsSnapshot = await getDocs(query(reviewsRef, orderBy('createdAt', 'desc'), limit(200)));
+    const reviews = reviewsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-    // Filter by search text (case-insensitive)
     const lowerSearch = searchText.toLowerCase().trim();
 
+    // 3. Find cafe IDs that have matching reviews
+    const matchingCafeIdsFromReviews = new Set();
+    reviews.forEach(review => {
+      if (!review.cafeId) return;
+
+      // Check tags
+      const tagMatch = [
+        ...(review.basicTags || []),
+        ...(review.advancedTags || [])
+      ].some(tag => tag.toLowerCase().includes(lowerSearch));
+
+      // Check content
+      const contentMatch = review.comment?.toLowerCase().includes(lowerSearch) ||
+        review.coffeeName?.toLowerCase().includes(lowerSearch);
+
+      if (tagMatch || contentMatch) {
+        matchingCafeIdsFromReviews.add(review.cafeId);
+      }
+    });
+
+    // 4. Filter cafes
     const filtered = cafes.filter(cafe => {
       // Search in cafe name
       const nameMatch = cafe.name?.toLowerCase().includes(lowerSearch);
@@ -44,7 +68,10 @@ export const searchCafes = async (searchText, limitCount = 20) => {
         tag.toLowerCase().includes(lowerSearch)
       );
 
-      return nameMatch || addressMatch || locationTagMatch;
+      // Search in associated reviews
+      const reviewMatch = matchingCafeIdsFromReviews.has(cafe.id);
+
+      return nameMatch || addressMatch || locationTagMatch || reviewMatch;
     });
 
     return filtered.slice(0, limitCount);

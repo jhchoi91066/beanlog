@@ -5,6 +5,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import RNCSlider from '@react-native-community/slider';
+import * as Haptics from 'expo-haptics';
 import PropTypes from 'prop-types';
 import Colors from '../constants/colors';
 import Typography from '../constants/typography';
@@ -45,7 +46,13 @@ const Slider = ({
       {/* Slider component */}
       <RNCSlider
         value={value}
-        onValueChange={onValueChange}
+        onValueChange={(val) => {
+          // Trigger haptic feedback when value changes (rounded to step)
+          if (Math.round(val) !== Math.round(value)) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }
+          onValueChange(val);
+        }}
         minimumValue={minimumValue}
         maximumValue={maximumValue}
         step={step}

@@ -11,6 +11,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { getTopRatedReviews } from '../services/feedService';
 import CoffeeCard from '../components/CoffeeCard';
 import LoadingSpinner from '../components/LoadingSpinner';
+import CoffeeCardSkeleton from '../components/CoffeeCardSkeleton';
 import { Colors, Typography } from '../constants';
 
 const RankingScreen = ({ navigation }) => {
@@ -99,7 +100,15 @@ const RankingScreen = ({ navigation }) => {
     };
 
     if (loading && !refreshing) {
-        return <LoadingSpinner visible={true} fullScreen={false} />;
+        return (
+            <View style={[styles.container, { backgroundColor: colors.background, padding: 16 }]}>
+                {[1, 2, 3].map((key) => (
+                    <View key={key} style={{ marginBottom: 24 }}>
+                        <CoffeeCardSkeleton />
+                    </View>
+                ))}
+            </View>
+        );
     }
 
     return (

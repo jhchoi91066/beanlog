@@ -83,21 +83,45 @@ const CafeDetailScreen = ({ route, navigation }) => {
         const hasReviewPhotos = reviewsData.some(r => r.photoUrls && r.photoUrls.length > 0);
 
         if (!hasReviewPhotos) {
-          // Try to fetch from Naver
-          try {
-            const naverImage = await searchNaverImages(cafeData.name);
-            if (naverImage) {
-              setCafe(prev => ({ ...prev, thumbnailUrl: naverImage }));
-            }
-          } catch (imgError) {
-            console.log('Failed to fetch Naver image:', imgError);
-          }
+          // Use placeholder logic instead of Naver Image Search
+          const { getCafePlaceholderImage } = require('../utils/imageUtils');
+          // We don't have tags here easily unless we aggregate from reviews, 
+          // but we can use the name.
+          const placeholder = getCafePlaceholderImage([], cafeData.name);
+          setCafe(prev => ({ ...prev, thumbnailUrl: placeholder }));
         } else {
           // Use the first review photo as thumbnail
           const firstReviewWithPhoto = reviewsData.find(r => r.photoUrls && r.photoUrls.length > 0);
           if (firstReviewWithPhoto) {
             setCafe(prev => ({ ...prev, thumbnailUrl: firstReviewWithPhoto.photoUrls[0] }));
           }
+        }
+      }
+
+      // v0.4: F-DETAIL - Fetch missing info (Phone, Link) from Naver Place
+      if (cafeData && (!cafeData.phoneNumber || !cafeData.naverLink)) {
+        try {
+          const { searchNaverPlaces } = require('../services/naverSearchService');
+          const naverResults = await searchNaverPlaces(cafeData.name);
+
+          // Find matching result by address
+          const match = naverResults.find(result => {
+            // Simple inclusion check for address
+            const addr1 = (cafeData.address || '').replace(/\s/g, '');
+            const addr2 = (result.address || '').replace(/\s/g, '');
+            return addr1.includes(addr2) || addr2.includes(addr1);
+          });
+
+          if (match) {
+            setCafe(prev => ({
+              ...prev,
+              phoneNumber: prev.phoneNumber || match.telephone,
+              naverLink: prev.naverLink || match.link,
+              description: prev.description || match.description, // Also fill description if empty
+            }));
+          }
+        } catch (err) {
+          console.log('Failed to fetch Naver Place info:', err);
         }
       }
     } catch (error) {
@@ -308,6 +332,19 @@ const CafeDetailScreen = ({ route, navigation }) => {
               <Ionicons name="time-outline" size={20} color={colors.stone400} />
               <Text style={[styles.infoText, { color: colors.stone600 }]}>휴무일: {cafe.closedDays.join(', ')}</Text>
             </View>
+          )}
+
+          {/* Naver Place Link */}
+          {cafe.naverLink && (
+            <TouchableOpacity
+              style={styles.infoRow}
+              onPress={() => Linking.openURL(cafe.naverLink)}
+            >
+              <View style={{ width: 20, alignItems: 'center' }}>
+                <Text style={{ fontSize: 14, fontWeight: '900', color: '#03C75A' }}>N</Text>
+              </View>
+              <Text style={[styles.infoText, { color: colors.stone600, textDecorationLine: 'underline' }]}>상세 정보 보기</Text>
+            </TouchableOpacity>
           )}
         </View>
 

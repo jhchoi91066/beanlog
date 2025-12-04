@@ -18,7 +18,7 @@ import Colors from '../constants/colors';
 import Typography from '../constants/typography';
 import FlavorRadar from './FlavorRadar';
 import Tag from './Tag';
-import { searchNaverImages } from '../services/naverSearchService';
+import { getCafePlaceholderImage } from '../utils/imageUtils';
 import { useTheme } from '../contexts/ThemeContext';
 
 const { width } = Dimensions.get('window');
@@ -28,7 +28,7 @@ const CoffeeCard = ({ post, onPress, index = 0 }) => {
   const { colors } = useTheme();
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current; // Initial opacity: 0
-  const slideAnim = useRef(new Animated.Value(20)).current; // Initial y: 20
+  const slideAnim = useRef(new Animated.Value(50)).current; // Initial y: 50
   const scaleAnim = useRef(new Animated.Value(1)).current; // Card press scale
   const imageScaleAnim = useRef(new Animated.Value(1)).current; // Image zoom on press
 
@@ -46,56 +46,35 @@ const CoffeeCard = ({ post, onPress, index = 0 }) => {
   // Image state
   const [displayImage, setDisplayImage] = useState(post.imageUrl);
 
-  // Fetch image from Naver if missing
+  // Generate placeholder if image is missing
   useEffect(() => {
-    const fetchImage = async () => {
-      // console.log(`[CoffeeCard] Checking image for ${post.cafeName}:`, { imageUrl: post.imageUrl });
-      if (!post.imageUrl && post.cafeName) {
-        try {
-          // console.log(`[CoffeeCard] Fetching Naver image for ${post.cafeName}...`);
-          const imageUrl = await searchNaverImages(post.cafeName);
-          // console.log(`[CoffeeCard] Naver images result for ${post.cafeName}:`, imageUrl);
-
-          if (imageUrl) {
-            // Upgrade HTTP to HTTPS to avoid iOS ATS issues
-            const secureImageUrl = imageUrl.replace(/^http:\/\//i, 'https://');
-            console.log(`[CoffeeCard] Setting image to: ${secureImageUrl}`);
-            setDisplayImage(secureImageUrl);
-          } else {
-            // Fallback image
-            // console.log('[CoffeeCard] No Naver images found, using fallback');
-            setDisplayImage('https://images.unsplash.com/photo-1497935586351-b67a49e012bf?q=80&w=1000&auto=format&fit=crop');
-          }
-        } catch (error) {
-          console.error('Error fetching Naver image for card:', error);
-          setDisplayImage('https://images.unsplash.com/photo-1497935586351-b67a49e012bf?q=80&w=1000&auto=format&fit=crop');
-        }
-      } else if (!post.imageUrl) {
-        // console.log('[CoffeeCard] No cafe name, using fallback');
-        setDisplayImage('https://images.unsplash.com/photo-1497935586351-b67a49e012bf?q=80&w=1000&auto=format&fit=crop');
-      }
-    };
-
-    fetchImage();
-  }, [post.imageUrl, post.cafeName]);
+    if (!post.imageUrl) {
+      // Use the new placeholder logic
+      const placeholder = getCafePlaceholderImage(post.tags, post.coffeeName);
+      setDisplayImage(placeholder);
+    } else {
+      setDisplayImage(post.imageUrl);
+    }
+  }, [post.imageUrl, post.tags, post.coffeeName]);
 
   // Mount animation with stagger effect based on index
   useEffect(() => {
     // Stagger animation: 100ms delay per card
-    const delay = index * 100;
+    const delay = index * 150; // Increased delay for more noticeable ripple
 
     Animated.parallel([
       // Fade in: opacity 0 → 1
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 400,
+        duration: 600, // Slower fade
         delay,
         useNativeDriver: true,
       }),
-      // Slide up: y: 20 → 0
-      Animated.timing(slideAnim, {
+      // Slide up: y: 50 → 0 (Increased distance)
+      Animated.spring(slideAnim, {
         toValue: 0,
-        duration: 400,
+        friction: 6,
+        tension: 40,
         delay,
         useNativeDriver: true,
       }),
@@ -103,7 +82,7 @@ const CoffeeCard = ({ post, onPress, index = 0 }) => {
   }, [index]);
 
   // Card press handlers
-  const handlePressIn = () => {
+  const onCardPressIn = () => {
     Animated.parallel([
       // Card scales down slightly
       Animated.spring(scaleAnim, {
@@ -118,7 +97,7 @@ const CoffeeCard = ({ post, onPress, index = 0 }) => {
     ]).start();
   };
 
-  const handlePressOut = () => {
+  const onCardPressOut = () => {
     Animated.parallel([
       // Card bounces back
       Animated.spring(scaleAnim, {
@@ -144,11 +123,18 @@ const CoffeeCard = ({ post, onPress, index = 0 }) => {
     Animated.sequence([
       // Scale down
       Animated.timing(likeScaleAnim, {
-        toValue: 0.85,
+        toValue: 0.8,
         duration: 100,
         useNativeDriver: true,
       }),
-      // Scale up with bounce
+      // Scale up (overshoot)
+      Animated.spring(likeScaleAnim, {
+        toValue: 1.2,
+        friction: 3,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+      // Return to normal
       Animated.spring(likeScaleAnim, {
         toValue: 1,
         friction: 3,
@@ -221,8 +207,8 @@ const CoffeeCard = ({ post, onPress, index = 0 }) => {
       <Pressable
         style={[styles.card, { backgroundColor: colors.backgroundWhite }]}
         onPress={onPress}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
+        onPressIn={onCardPressIn}
+        onPressOut={onCardPressOut}
         android_ripple={{ color: colors.stone100 }}
       >
         {/* Image Section */}

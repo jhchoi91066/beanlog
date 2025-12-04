@@ -186,3 +186,19 @@ export const getSavedCafes = async (userId) => {
     throw error;
   }
 };
+/**
+ * Update cafe thumbnail
+ * @param {string} cafeId - Cafe ID
+ * @param {string} thumbnailUrl - New thumbnail URL
+ */
+export const updateCafeThumbnail = async (cafeId, thumbnailUrl) => {
+  try {
+    const cafeRef = doc(db, 'cafes', cafeId);
+    await updateDoc(cafeRef, {
+      thumbnailUrl: thumbnailUrl
+    });
+  } catch (error) {
+    console.error('Error updating cafe thumbnail:', error);
+    throw error;
+  }
+};

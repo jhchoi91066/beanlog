@@ -15,7 +15,7 @@ import {
 import PropTypes from 'prop-types';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography } from '../constants';
-import { LoadingSpinner, EmptyState, Tag, NaverMapView } from '../components';
+import { LoadingSpinner, EmptyState, Tag, NaverMapView, FeaturedCarousel } from '../components';
 import { getAllCafes, getCafesByLocation } from '../services/cafeService';
 
 // Available location filters from The Blueprint
@@ -29,6 +29,7 @@ const LOCATION_FILTERS = [
 const HomeScreen = ({ navigation }) => {
   const [cafes, setCafes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [featuredCafes, setFeaturedCafes] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState('all');
 
   // v0.2: F-MAP - Map/List view toggle
@@ -57,11 +58,43 @@ const HomeScreen = ({ navigation }) => {
       }
 
       setCafes(data);
+      console.log('Fetched cafes count:', data.length);
+
+      // Select 3 random cafes for featured section if in 'all' mode
+      if (selectedLocation === 'all') {
+        let candidates = data;
+        if (data.length === 0) {
+          // Mock data for debugging
+          candidates = [
+            { id: 'm1', name: 'Mock Cafe 1', address: 'Seoul', thumbnailUrl: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93' },
+            { id: 'm2', name: 'Mock Cafe 2', address: 'Busan', thumbnailUrl: 'https://images.unsplash.com/photo-1497935586351-b67a49e012bf' },
+            { id: 'm3', name: 'Mock Cafe 3', address: 'Jeju', thumbnailUrl: 'https://images.unsplash.com/photo-1511920170033-f8396924c348' }
+          ];
+        }
+
+        const shuffled = [...candidates].sort(() => 0.5 - Math.random());
+        const featured = shuffled.slice(0, 3);
+        console.log('Setting featured cafes:', featured.length);
+        setFeaturedCafes(featured);
+      } else {
+        console.log('Clearing featured cafes (location not all or no data)');
+        setFeaturedCafes([]);
+      }
     } catch (error) {
       // Firebase is not configured yet, so service calls will fail
       // Show empty state when error occurs
       console.log('Service call failed (expected until Firebase is configured):', error.message);
       setCafes([]);
+
+      // Fallback: Set mock featured cafes even if service fails
+      if (selectedLocation === 'all') {
+        const mockFeatured = [
+          { id: 'm1', name: 'Mock Cafe 1', address: 'Seoul', thumbnailUrl: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93' },
+          { id: 'm2', name: 'Mock Cafe 2', address: 'Busan', thumbnailUrl: 'https://images.unsplash.com/photo-1497935586351-b67a49e012bf' },
+          { id: 'm3', name: 'Mock Cafe 3', address: 'Jeju', thumbnailUrl: 'https://images.unsplash.com/photo-1511920170033-f8396924c348' }
+        ];
+        setFeaturedCafes(mockFeatured);
+      }
     } finally {
       setLoading(false);
     }
@@ -112,8 +145,8 @@ const HomeScreen = ({ navigation }) => {
     const locationDisplay = item.locationTags && item.locationTags.length > 1
       ? item.locationTags[1] // Use district (성수, 강남, etc.)
       : item.locationTags && item.locationTags.length > 0
-      ? item.locationTags[0]
-      : '';
+        ? item.locationTags[0]
+        : '';
 
     return (
       <TouchableOpacity
@@ -234,19 +267,20 @@ const HomeScreen = ({ navigation }) => {
 
       {/* Cafe list or map view */}
       <View style={styles.listWrapper}>
-        {cafes.length === 0 ? (
-          <EmptyState message="등록된 카페가 없습니다" />
-        ) : viewMode === 'map' ? (
-          // v0.2: F-MAP - Map View
-          <NaverMapView
-            cafes={cafes}
-            onMarkerPress={handleMarkerPress}
-            initialRegion={{
-              latitude: 37.5665,
-              longitude: 126.9780,
-              zoom: 12,
-            }}
-          />
+        {viewMode === 'map' ? (
+          cafes.length === 0 ? (
+            <EmptyState message="등록된 카페가 없습니다" />
+          ) : (
+            <NaverMapView
+              cafes={cafes}
+              onMarkerPress={handleMarkerPress}
+              initialRegion={{
+                latitude: 37.5665,
+                longitude: 126.9780,
+                zoom: 12,
+              }}
+            />
+          )
         ) : (
           // List View
           <FlatList
@@ -255,6 +289,19 @@ const HomeScreen = ({ navigation }) => {
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
+            ListHeaderComponent={
+              selectedLocation === 'all' ? (
+                <FeaturedCarousel
+                  cafes={featuredCafes}
+                  onPress={handleCafePress}
+                />
+              ) : null
+            }
+            ListEmptyComponent={
+              <View style={{ marginTop: 40 }}>
+                <EmptyState message="등록된 카페가 없습니다" />
+              </View>
+            }
           />
         )}
       </View>

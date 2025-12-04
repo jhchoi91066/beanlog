@@ -18,7 +18,8 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import Colors from '../constants/colors';
 import Typography from '../constants/typography';
-import { CoffeeCard, LoadingSpinner } from '../components';
+import { CoffeeCard, LoadingSpinner, FeaturedCarousel } from '../components';
+import CoffeeCardSkeleton from '../components/CoffeeCardSkeleton';
 import NaverMapView from '../components/NaverMapView';
 import { getRecentReviews, getReviewsByTag, getPersonalizedFeed, getTopRatedReviews } from '../services/feedService';
 import { getAllCafes } from '../services/cafeService';
@@ -148,10 +149,22 @@ const FeedHomeScreen = ({ navigation }) => {
   const [nearbyCafes, setNearbyCafes] = useState([]);
   const [locationPermission, setLocationPermission] = useState(null);
   const [locationLoading, setLocationLoading] = useState(false);
+  const [featuredCafes, setFeaturedCafes] = useState([]);
 
   // Load feed data on mount and when filter changes
   useEffect(() => {
     loadPreferencesAndFeed();
+
+    // Prepare featured cafes from mock posts
+    const featured = MOCK_POSTS.slice(0, 3).map(post => ({
+      id: post.id,
+      name: post.cafeName,
+      address: post.location,
+      thumbnailUrl: post.imageUrl,
+      locationTags: post.tags,
+      rating: post.rating
+    }));
+    setFeaturedCafes(featured);
   }, []);
 
   useEffect(() => {
@@ -475,6 +488,17 @@ const FeedHomeScreen = ({ navigation }) => {
           ? '취향에 딱 맞는 커피를 찾아왔어요.'
           : '오늘의 추천 커피를 확인해보세요.'}
       </Text>
+
+      <View style={{ marginTop: 20, marginBottom: -10 }}>
+        <FeaturedCarousel
+          cafes={featuredCafes}
+          onPress={(id) => {
+            // Find the post with this ID to get cafeId if available, or just navigate
+            // For mock data, we might not have real cafeId
+            console.log('Featured pressed:', id);
+          }}
+        />
+      </View>
     </View>
   );
 
@@ -551,10 +575,13 @@ const FeedHomeScreen = ({ navigation }) => {
 
   const renderFeedContent = () => {
     // Show loading spinner while fetching data
+    // Show loading skeleton while fetching data
     if (loading) {
       return (
-        <View style={styles.loadingContainer}>
-          <LoadingSpinner visible={true} fullScreen={false} />
+        <View style={styles.feedContent}>
+          {[1, 2, 3].map((key) => (
+            <CoffeeCardSkeleton key={key} />
+          ))}
         </View>
       );
     }
