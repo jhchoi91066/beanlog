@@ -33,6 +33,7 @@ import { getTasteDescription } from '../services/userService';
 import { getUserAchievements } from '../services/achievementService';
 import ShareableCard from '../components/ShareableCard';
 import { captureAndShare } from '../services/shareService';
+import { seedMockData } from '../services/seedService';
 
 const MyPageScreen = ({ navigation }) => {
   const { colors } = useTheme();
@@ -144,8 +145,19 @@ const MyPageScreen = ({ navigation }) => {
    */
   const enrichReviewsWithCafeInfo = async (userReviews) => {
     try {
+      // Optimization: Only fetch cafes that are missing name/address in the review itself
+      // This leverages data denormalization to reduce reads
       const enrichedReviews = await Promise.all(
         userReviews.map(async (review) => {
+          // If we already have the info (denormalized), skip the fetch
+          if (review.cafeName && review.cafeAddress) {
+            return {
+              ...review,
+              location: review.cafeAddress,
+            };
+          }
+
+          // Fallback: Fetch from Cafe collection (Cost: 1 read)
           try {
             const cafe = await getCafeById(review.cafeId);
             return {
@@ -602,9 +614,24 @@ const MyPageScreen = ({ navigation }) => {
               <Ionicons name="book" size={20} color={colors.brand} />
               <Text style={[styles.passportTitle, { color: colors.textPrimary }]}>COFFEE PASSPORT</Text>
             </View>
-            <TouchableOpacity onPress={handleSettingsPress}>
-              <Ionicons name="settings-outline" size={20} color={colors.textSecondary} />
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 16 }}>
+              <TouchableOpacity onPress={async () => {
+                const success = await seedMockData();
+                if (success) {
+                  Alert.alert('성공', '테스트 데이터가 생성되었습니다. 피드를 새로고침하세요.');
+                } else {
+                  Alert.alert(
+                    '권한 오류',
+                    'Firestore 보안 규칙이 생성을 차단했습니다.\n\nFirebase Console > Rules에서 다음 규칙을 허용해주세요:\nallow create: if request.auth != null;'
+                  );
+                }
+              }}>
+                <Ionicons name="construct-outline" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleSettingsPress}>
+                <Ionicons name="settings-outline" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.passportProfile}>
@@ -767,6 +794,7 @@ const MyPageScreen = ({ navigation }) => {
           user={user}
           stats={statistics}
           achievements={achievements}
+          flavorProfile={flavorPreference}
         />
       </View>
     </View >

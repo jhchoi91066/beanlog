@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { View, StyleSheet, PanResponder, Dimensions } from 'react-native';
-import Svg, { Polygon, Line, Text as SvgText, Circle, G } from 'react-native-svg';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
+import { View, StyleSheet, PanResponder, Text } from 'react-native';
+import Svg, { Polygon, Circle, Line, Text as SvgText, G } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '../constants';
 
@@ -15,6 +15,9 @@ const InteractiveFlavorRadar = ({ data, onDataChange, size = 300, readOnly = fal
     const radius = (size / 2) * 0.7;
     const angleSlice = (Math.PI * 2) / 5; // 5 axes
 
+    // State to keep track of the currently active axis for dragging
+    const [activeAxisIndex, setActiveAxisIndex] = useState(null);
+
     // Helper to calculate coordinates
     const getCoordinates = (value, index, maxVal) => {
         const angle = index * angleSlice - Math.PI / 2;
@@ -25,10 +28,30 @@ const InteractiveFlavorRadar = ({ data, onDataChange, size = 300, readOnly = fal
         };
     };
 
-    // Calculate distance between two points
-    const getDistance = (x1, y1, x2, y2) => {
-        return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
-    };
+    // Function to find the closest axis to a touch point
+    const findClosestAxis = useCallback((x, y) => {
+        const dx = x - center;
+        const dy = y - center;
+        let angle = Math.atan2(dy, dx);
+
+        let touchAngle = angle + Math.PI / 2;
+        if (touchAngle < 0) touchAngle += Math.PI * 2;
+
+        let closestIdx = 0;
+        let minAngleDiff = Infinity;
+
+        for (let i = 0; i < 5; i++) {
+            const axisAngle = i * angleSlice;
+            let diff = Math.abs(touchAngle - axisAngle);
+            if (diff > Math.PI) diff = Math.PI * 2 - diff;
+
+            if (diff < minAngleDiff) {
+                minAngleDiff = diff;
+                closestIdx = i;
+            }
+        }
+        return closestIdx;
+    }, [center, angleSlice]);
 
     // PanResponder for handling drag gestures
     const panResponder = useRef(
@@ -36,74 +59,45 @@ const InteractiveFlavorRadar = ({ data, onDataChange, size = 300, readOnly = fal
             onStartShouldSetPanResponder: () => !readOnly,
             onMoveShouldSetPanResponder: () => !readOnly,
             onPanResponderGrant: (evt, gestureState) => {
-                console.log('PanResponder granted at:', evt.nativeEvent.locationX, evt.nativeEvent.locationY);
-                handleTouch(evt.nativeEvent.locationX, evt.nativeEvent.locationY);
+                if (readOnly) return;
+                const { locationX, locationY } = evt.nativeEvent;
+                const closestIdx = findClosestAxis(locationX, locationY);
+                setActiveAxisIndex(closestIdx);
+                handleTouch(locationX, locationY, closestIdx);
             },
             onPanResponderMove: (evt, gestureState) => {
-                handleTouch(evt.nativeEvent.locationX, evt.nativeEvent.locationY);
+                if (readOnly || activeAxisIndex === null) return;
+                handleTouch(evt.nativeEvent.locationX, evt.nativeEvent.locationY, activeAxisIndex);
             },
             onPanResponderTerminationRequest: () => false,
             onShouldBlockNativeResponder: () => true,
             onPanResponderRelease: () => {
-                console.log('PanResponder released');
+                setActiveAxisIndex(null);
             },
         })
     ).current;
 
-    const handleTouch = (x, y) => {
-        // 1. Determine which axis is closest to the touch point
-        // Calculate angle of touch point relative to center
+    const handleTouch = (x, y, axisIndex) => {
+        // Calculate value based on distance from center
         const dx = x - center;
         const dy = y - center;
-        let angle = Math.atan2(dy, dx);
-
-        // Adjust angle to match our axis orientation (starting from -PI/2)
-        // atan2 returns -PI to PI. Our axes start at -PI/2 (top) and go clockwise.
-        // Let's normalize everything to 0 to 2PI starting from top.
-
-        let touchAngle = angle + Math.PI / 2;
-        if (touchAngle < 0) touchAngle += Math.PI * 2;
-
-        // Find closest axis index
-        // Each axis is at index * angleSlice
-        let closestIndex = 0;
-        let minAngleDiff = Infinity;
-
-        for (let i = 0; i < 5; i++) {
-            const axisAngle = i * angleSlice;
-            let diff = Math.abs(touchAngle - axisAngle);
-            // Handle wrap around (e.g. close to 0 vs close to 2PI)
-            if (diff > Math.PI) diff = Math.PI * 2 - diff;
-
-            if (diff < minAngleDiff) {
-                minAngleDiff = diff;
-                closestIndex = i;
-            }
-        }
-
-        // 2. Calculate value based on distance from center
-        // Project touch point onto the axis vector to get accurate distance along the axis
-        // But simple distance is usually good enough for radar charts if we assume user touches near axis
         const dist = Math.sqrt(dx * dx + dy * dy);
 
         // Clamp distance to radius
         const clampedDist = Math.min(dist, radius);
 
         // Map distance to value (0 to 5)
-        // We want a minimum value of 1 usually, or 0? Let's say 1-5 for flavor.
-        // Let's allow 0-5.
         let newValue = (clampedDist / radius) * 5;
 
-        // Snap to nearest 0.5 or 1? Let's snap to 1 for integer ratings
+        // Snap to nearest integer for ratings
         newValue = Math.round(newValue);
         if (newValue < 1) newValue = 1; // Minimum 1
         if (newValue > 5) newValue = 5;
 
-        // 3. Update data if changed
-        if (data[closestIndex].A !== newValue) {
-            console.log(`Updating ${data[closestIndex].subject} to ${newValue}`);
+        // Update data if changed
+        if (data[axisIndex].A !== newValue) {
             const newData = [...data];
-            newData[closestIndex].A = newValue;
+            newData[axisIndex].A = newValue;
             onDataChange(newData);
 
             // Haptic feedback

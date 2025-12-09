@@ -4,12 +4,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '../constants/colors';
 import Typography from '../constants/typography';
+import InteractiveFlavorRadar from './InteractiveFlavorRadar';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = 320; // Fixed width for consistency
 const CARD_HEIGHT = 568; // 9:16 ratio approx
 
-const ShareableCard = ({ user, stats, achievements }) => {
+const ShareableCard = ({ user, stats, achievements, flavorProfile }) => {
     // Get unlocked achievements count
     const unlockedCount = achievements.filter(a => a.unlocked).length;
 
@@ -62,21 +63,21 @@ const ShareableCard = ({ user, stats, achievements }) => {
                     </View>
                 </View>
 
-                {/* Passport Stamps Showcase */}
+                {/* Flavor Profile Showcase */}
                 <View style={styles.stampsSection}>
-                    <Text style={styles.sectionTitle}>My Coffee Passport</Text>
-                    <View style={styles.stampsRow}>
-                        {latestStamps.map((stamp, index) => (
-                            <View key={index} style={styles.stampItem}>
-                                <View style={styles.stampIconContainer}>
-                                    <Ionicons name={stamp.icon} size={32} color={Colors.brand} />
-                                </View>
-                                <Text style={styles.stampName}>{stamp.label}</Text>
-                            </View>
-                        ))}
-                        {latestStamps.length === 0 && (
-                            <Text style={styles.emptyText}>No stamps yet. Start your journey!</Text>
-                        )}
+                    <Text style={styles.sectionTitle}>My Taste Profile</Text>
+                    <View style={{ pointerEvents: 'none' }}>
+                        <InteractiveFlavorRadar
+                            data={[
+                                { subject: '산미', A: flavorProfile?.acidity || 0, fullMark: 5 },
+                                { subject: '단맛', A: flavorProfile?.sweetness || 0, fullMark: 5 },
+                                { subject: '바디', A: flavorProfile?.body || 0, fullMark: 5 },
+                                { subject: '쓴맛', A: flavorProfile?.bitterness || 0, fullMark: 5 },
+                                { subject: '향', A: flavorProfile?.aroma || 0, fullMark: 5 },
+                            ]}
+                            size={200}
+                            readOnly={true}
+                        />
                     </View>
                 </View>
 

@@ -24,7 +24,8 @@ const Tag = ({
   variant = 'default',
   size = 'default',
   onPress,
-  style
+  style,
+  textStyle: customTextStyle,
 }) => {
   // Animation values
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -45,6 +46,7 @@ const Tag = ({
     styles.tagText,
     size === 'small' && styles.tagTextSmall,
     variant === 'secondary' ? styles.secondaryText : (selected ? styles.selectedText : styles.unselectedText),
+    customTextStyle,
   ];
 
   // Press animation handlers

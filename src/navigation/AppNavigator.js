@@ -31,6 +31,7 @@ import FeedHomeScreen from '../screens/FeedHomeScreen';
 import CollectionDetailScreen from '../screens/CollectionDetailScreen';
 import CategoryDetailScreen from '../screens/CategoryDetailScreen';
 import SearchScreen from '../screens/SearchScreen';
+import UserProfileScreen from '../screens/UserProfileScreen';
 import { Colors } from '../constants';
 import { LoadingSpinner } from '../components';
 
@@ -379,16 +380,14 @@ const AppNavigator = () => {
                 ...screenOptions
               }}
             />
-            {/* <Stack.Screen
+            <Stack.Screen
               name="CollectionDetail"
               component={CollectionDetailScreen}
-              options={{ headerShown: false }}
+              options={{
+                headerShown: true,
+                ...screenOptions
+              }}
             />
-            <Stack.Screen
-              name="CategoryDetail"
-              component={CategoryDetailScreen}
-              options={{ headerShown: false }}
-            /> */}
             <Stack.Screen
               name="PostDetail"
               component={PostDetailScreen}
@@ -414,16 +413,14 @@ const AppNavigator = () => {
                 ...screenOptions
               }}
             />
-            {/* <Stack.Screen
+            <Stack.Screen
               name="CollectionDetail"
               component={CollectionDetailScreen}
-              options={{ headerShown: false }}
+              options={{
+                headerShown: true,
+                ...screenOptions
+              }}
             />
-            <Stack.Screen
-              name="CategoryDetail"
-              component={CategoryDetailScreen}
-              options={{ headerShown: false }}
-            /> */}
             <Stack.Screen
               name="PostDetail"
               component={PostDetailScreen}

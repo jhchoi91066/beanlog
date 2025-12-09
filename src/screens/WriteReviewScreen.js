@@ -31,12 +31,7 @@ import { getAllCafes, createCafe } from '../services/cafeService';
 import { uploadMultipleReviewImages } from '../services/imageService';
 import { searchNaverPlaces } from '../services/naverSearchService';
 import { getCafePlaceholderImage } from '../utils/imageUtils';
-
-// Combined Tags for Tasting Note
-const FLAVOR_TAGS = [
-  '상큼한', '고소한', '달콤한', '묵직한', '부드러운', '꽃향기',
-  '시트러스', '초콜릿', '견과류', '베리', '스파이시'
-];
+import { FLAVOR_SUGGESTIONS, ALL_FLAVOR_TAGS } from '../constants/flavorTags';
 
 // Roasting Levels
 const ROASTING_LEVELS = ['Light', 'Medium', 'Dark'];
@@ -67,6 +62,8 @@ const WriteReviewScreen = ({ navigation, route }) => {
   const [bitterness, setBitterness] = useState(3);
   const [aroma, setAroma] = useState(3);
   const [selectedTags, setSelectedTags] = useState([]);
+  const [suggestedTags, setSuggestedTags] = useState([]); // Smart suggestions
+  const [hasManuallyToggledTags, setHasManuallyToggledTags] = useState(false); // Track manual interaction
   const [roasting, setRoasting] = useState(null);
   const [comment, setComment] = useState('');
 
@@ -76,6 +73,38 @@ const WriteReviewScreen = ({ navigation, route }) => {
   // UI State
   const [submitting, setSubmitting] = useState(false);
   const [validationError, setValidationError] = useState('');
+
+  // Smart Tag Suggestion Logic
+  useEffect(() => {
+    const newSuggestions = new Set();
+
+    // Thresholds for suggestions (Lowered for better sensitivity)
+    const HIGH_THRESHOLD = 3.5;
+    const LOW_THRESHOLD = 1.5;
+
+    if (acidity >= HIGH_THRESHOLD) FLAVOR_SUGGESTIONS.acidity.high.forEach(t => newSuggestions.add(t));
+    if (acidity <= LOW_THRESHOLD) FLAVOR_SUGGESTIONS.acidity.low.forEach(t => newSuggestions.add(t));
+
+    if (sweetness >= HIGH_THRESHOLD) FLAVOR_SUGGESTIONS.sweetness.high.forEach(t => newSuggestions.add(t));
+
+    if (body >= HIGH_THRESHOLD) FLAVOR_SUGGESTIONS.body.high.forEach(t => newSuggestions.add(t));
+    if (body <= LOW_THRESHOLD) FLAVOR_SUGGESTIONS.body.low.forEach(t => newSuggestions.add(t));
+
+    if (bitterness >= HIGH_THRESHOLD) FLAVOR_SUGGESTIONS.bitterness.high.forEach(t => newSuggestions.add(t));
+
+    if (aroma >= HIGH_THRESHOLD) FLAVOR_SUGGESTIONS.aroma.high.forEach(t => newSuggestions.add(t));
+
+    // Filter out already selected tags to avoid redundancy in suggestion area?
+    // Actually, keeping them might be good to show "why" it's selected.
+    // Let's just convert to array.
+    const suggestionsArray = Array.from(newSuggestions);
+    setSuggestedTags(suggestionsArray);
+
+    // Auto-select tags if user hasn't manually intervened (Input as Play)
+    if (!hasManuallyToggledTags) {
+      setSelectedTags(suggestionsArray);
+    }
+  }, [acidity, sweetness, body, bitterness, aroma, hasManuallyToggledTags]);
 
   // Load cafes on mount
   useEffect(() => {
@@ -108,6 +137,8 @@ const WriteReviewScreen = ({ navigation, route }) => {
       const tags = [...(review.basicTags || []), ...(review.advancedTags || [])];
       // Remove duplicates
       setSelectedTags([...new Set(tags)]);
+      if (tags.length > 0) setHasManuallyToggledTags(true); // Treat existing tags as manual input
+
 
       setRoasting(review.roasting || null);
     }
@@ -138,6 +169,7 @@ const WriteReviewScreen = ({ navigation, route }) => {
     } else {
       setSelectedTags([...selectedTags, tag]);
     }
+    setHasManuallyToggledTags(true); // Disable auto-sync once user interacts
   };
 
   /**
@@ -587,8 +619,34 @@ const WriteReviewScreen = ({ navigation, route }) => {
         {/* Tags Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Flavor Tags</Text>
+
+          {/* Smart Suggestions */}
+          {suggestedTags.length > 0 && (
+            <View style={styles.suggestionContainer}>
+              <View style={styles.suggestionHeader}>
+                <Ionicons name="sparkles" size={14} color={Colors.amber600} />
+                <Text style={styles.suggestionTitle}>이런 맛이 느껴지시나요?</Text>
+              </View>
+              <View style={styles.tagsContainer}>
+                {suggestedTags.map((tag) => (
+                  <Tag
+                    key={`suggested-${tag}`}
+                    label={tag}
+                    selected={selectedTags.includes(tag)}
+                    onPress={() => toggleTag(tag)}
+                    style={{ borderColor: Colors.amber200, backgroundColor: selectedTags.includes(tag) ? Colors.amber100 : Colors.amber50 }}
+                    textStyle={{ color: Colors.amber700 }}
+                  />
+                ))}
+              </View>
+            </View>
+          )}
+
+          <Text style={[styles.sectionSubtitle, { color: colors.textSecondary, marginTop: 12 }]}>
+            전체 태그
+          </Text>
           <View style={styles.tagsContainer}>
-            {FLAVOR_TAGS.map((tag) => (
+            {ALL_FLAVOR_TAGS.map((tag) => (
               <Tag
                 key={tag}
                 label={tag}
@@ -626,6 +684,8 @@ const WriteReviewScreen = ({ navigation, route }) => {
             ))}
           </View>
         </View>
+
+
 
         {/* Comment & Photos */}
         <View style={styles.section}>
@@ -748,6 +808,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+  },
+  suggestionContainer: {
+    backgroundColor: Colors.amber50 + '40', // Very light amber
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: Colors.amber100,
+  },
+  suggestionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  suggestionTitle: {
+    ...Typography.caption,
+    color: Colors.amber800,
+    fontWeight: '600',
   },
 
   // Roasting Buttons

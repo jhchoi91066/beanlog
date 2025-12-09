@@ -12,6 +12,7 @@ import {
   Platform,
   Linking,
   Modal,
+  RefreshControl,
 } from 'react-native';
 import Slider from '@react-native-community/slider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -20,11 +21,14 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import Colors from '../constants/colors';
 import Typography from '../constants/typography';
-import { CoffeeCard, LoadingSpinner, FeaturedCarousel } from '../components';
+import { CoffeeCard, LoadingSpinner } from '../components';
+import FeaturedCarousel from '../components/FeaturedCarousel';
+import CollectionSection from '../components/CollectionSection';
 import CoffeeCardSkeleton from '../components/CoffeeCardSkeleton';
 import NaverMapView from '../components/NaverMapView';
 import { getRecentReviews, getReviewsByTag, getPersonalizedFeed, getTopRatedReviews } from '../services/feedService';
 import { getAllCafes } from '../services/cafeService';
+import { getAllCollections } from '../services/collectionService';
 import { useTheme } from '../contexts';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -144,6 +148,7 @@ const FeedHomeScreen = ({ navigation }) => {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [collections, setCollections] = useState([]); // Curated collections
   const [userPreferences, setUserPreferences] = useState(null); // Store user preferences
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [flavorFilter, setFlavorFilter] = useState({
@@ -217,6 +222,12 @@ const FeedHomeScreen = ({ navigation }) => {
   const loadFeed = async () => {
     try {
       setLoading(true);
+
+      // Fetch collections
+      const fetchedCollections = await getAllCollections();
+      console.log('Fetched collections:', fetchedCollections.length);
+      setCollections(fetchedCollections);
+
       let reviews;
 
       if (selectedFilter === '전체') {
@@ -674,7 +685,18 @@ const FeedHomeScreen = ({ navigation }) => {
         scrollEnabled={false}
         ListHeaderComponent={
           <>
-            {renderHeader()}
+
+
+            {/* Curated Collections */}
+            {collections.map((collection) => (
+              <CollectionSection
+                key={collection.id}
+                collection={collection}
+                navigation={navigation}
+              />
+            ))}
+
+
           </>
         }
         ListEmptyComponent={
@@ -925,6 +947,9 @@ const FeedHomeScreen = ({ navigation }) => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         nestedScrollEnabled={true}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
       >
         {renderHeader()}
         {renderTabs()}

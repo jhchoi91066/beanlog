@@ -13,7 +13,8 @@ const NaverMapView = ({
   initialRegion,
   userLocation,
   style,
-  interactive = true // New prop to control map interaction
+  interactive = true,
+  onRegionChangeComplete // Added this
 }) => {
   console.log('NaverMapView rendered with:', { userLocation, initialRegion });
   const webViewRef = useRef(null);
@@ -139,6 +140,24 @@ const NaverMapView = ({
             }
         };
 
+        // Event listeners for map movement
+        naver.maps.Event.addListener(map, 'idle', function() {
+            var center = map.getCenter();
+            var zoom = map.getZoom();
+            var bounds = map.getBounds();
+            
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'regionChange',
+                region: {
+                    latitude: center.lat(),
+                    longitude: center.lng(),
+                    zoom: zoom,
+                    latitudeDelta: bounds.getMax().lat() - bounds.getMin().lat(),
+                    longitudeDelta: bounds.getMax().lng() - bounds.getMin().lng()
+                }
+            }));
+        });
+
 
         // Send ready message
         window.ReactNativeWebView.postMessage(JSON.stringify({
@@ -158,6 +177,8 @@ const NaverMapView = ({
 
       if (message.type === 'markerPress' && onMarkerPress) {
         onMarkerPress(message.cafe);
+      } else if (message.type === 'regionChange' && onRegionChangeComplete) {
+        onRegionChangeComplete(message.region);
       } else if (message.type === 'mapReady') {
         console.log('✅ Naver Map loaded successfully');
         console.log('📍 WebView Origin:', message.origin);
@@ -247,6 +268,7 @@ const NaverMapView = ({
 NaverMapView.propTypes = {
   cafes: PropTypes.arrayOf(PropTypes.object).isRequired,
   onMarkerPress: PropTypes.func,
+  onRegionChangeComplete: PropTypes.func,
   initialRegion: PropTypes.shape({
     latitude: PropTypes.number,
     longitude: PropTypes.number,
@@ -262,6 +284,7 @@ NaverMapView.propTypes = {
 
 NaverMapView.defaultProps = {
   onMarkerPress: null,
+  onRegionChangeComplete: null,
   initialRegion: {
     latitude: 37.5665, // Seoul
     longitude: 126.9780,

@@ -22,15 +22,42 @@ const MAX_RECENT_SEARCHES = 10;
  */
 export const searchCafes = async (searchText, limitCount = 20, flavorFilter = null) => {
   try {
-    // 1. Fetch all cafes
+    // 1. Fetch cafes (Optimized)
     const cafesRef = collection(db, 'cafes');
-    const cafesSnapshot = await getDocs(query(cafesRef, limit(100)));
+    let q = query(cafesRef, limit(100));
+
+    // Optimization: If flavor filter is active, use it in the query
+    // Note: This assumes cafes have 'flavorProfile' denormalized or we are querying reviews.
+    // Since 'cafes' collection might not have flavorProfile, we might need to rely on reviews.
+    // However, if we can't filter cafes by flavor directly in DB, we at least limit the fetch.
+
+    // CURRENT STATE: Cafes collection does NOT have flavorProfile. 
+    // So we must fetch reviews to find matching cafes.
+    // We can optimization the REVIEW fetch instead.
+
+    const cafesSnapshot = await getDocs(q);
     const cafes = cafesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
     // 2. Fetch recent reviews to search tags/content AND flavor profile
     const reviewsRef = collection(db, 'reviews');
-    // Fetching more reviews to ensure we cover enough ground for tags
-    const reviewsSnapshot = await getDocs(query(reviewsRef, orderBy('createdAt', 'desc'), limit(200)));
+    let reviewsQuery = query(reviewsRef, orderBy('createdAt', 'desc'), limit(200));
+
+    // Optimization: If flavor filter is active, query REVIEWS by that flavor
+    // This helps us find relevant cafes much faster/cheaper than fetching random 200 reviews
+    if (flavorFilter) {
+      const activeField = Object.keys(flavorFilter).find(key => flavorFilter[key] > 0);
+      if (activeField) {
+        console.log(`[Search Optimization] Filtering reviews by ${activeField}`);
+        reviewsQuery = query(
+          reviewsRef,
+          where(`flavorProfile.${activeField}`, '>=', flavorFilter[activeField]),
+          orderBy(`flavorProfile.${activeField}`, 'desc'),
+          limit(50) // We need fewer reviews if they are highly relevant
+        );
+      }
+    }
+
+    const reviewsSnapshot = await getDocs(reviewsQuery);
     const reviews = reviewsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
     const lowerSearch = searchText.toLowerCase().trim();

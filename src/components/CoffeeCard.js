@@ -13,6 +13,7 @@ import {
   Animated,
   Pressable,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '../constants/colors';
 import Typography from '../constants/typography';
@@ -28,6 +29,7 @@ const CARD_WIDTH = width - 32; // 16px padding on each side
 
 const CoffeeCard = ({ post, onPress, onCommentPress, index = 0 }) => {
   const { colors } = useTheme();
+  const navigation = useNavigation();
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current; // Initial opacity: 0
   const slideAnim = useRef(new Animated.Value(50)).current; // Initial y: 50
@@ -280,11 +282,11 @@ const CoffeeCard = ({ post, onPress, onCommentPress, index = 0 }) => {
             <View style={styles.radarContainer}>
               <FlavorRadar
                 data={[
-                  { subject: '산미', A: post.flavorProfile.acidity, fullMark: 5 },
-                  { subject: '단맛', A: post.flavorProfile.sweetness, fullMark: 5 },
-                  { subject: '바디', A: post.flavorProfile.body, fullMark: 5 },
-                  { subject: '쓴맛', A: post.flavorProfile.bitterness, fullMark: 5 },
-                  { subject: '향', A: post.flavorProfile.aroma, fullMark: 5 },
+                  { subject: '산미', A: post.flavorProfile?.acidity || 0, fullMark: 5 },
+                  { subject: '단맛', A: post.flavorProfile?.sweetness || 0, fullMark: 5 },
+                  { subject: '바디', A: post.flavorProfile?.body || 0, fullMark: 5 },
+                  { subject: '쓴맛', A: post.flavorProfile?.bitterness || 0, fullMark: 5 },
+                  { subject: '향', A: post.flavorProfile?.aroma || 0, fullMark: 5 },
                 ]}
                 size={140}
               />
@@ -293,7 +295,7 @@ const CoffeeCard = ({ post, onPress, onCommentPress, index = 0 }) => {
 
           {/* Tags */}
           <View style={styles.tagsContainer}>
-            {post.tags.map((tag, tagIndex) => (
+            {(post.tags || []).map((tag, tagIndex) => (
               <Tag
                 key={tagIndex}
                 label={`#${tag}`}
@@ -307,9 +309,20 @@ const CoffeeCard = ({ post, onPress, onCommentPress, index = 0 }) => {
         {/* Footer Section */}
         <View style={[styles.footer, { borderTopColor: colors.stone100 }]}>
           {/* Author Info */}
-          <View style={styles.authorContainer}>
+          <TouchableOpacity
+            style={styles.authorContainer}
+            onPress={() => {
+              if (post.userId) {
+                navigation.navigate('UserProfile', {
+                  userId: post.userId,
+                  userDisplayName: post.author?.name,
+                  userPhotoURL: post.author?.avatar
+                });
+              }
+            }}
+          >
             <View style={styles.avatar}>
-              {post.author.avatar ? (
+              {post.author?.avatar ? (
                 <Image
                   source={{ uri: post.author.avatar }}
                   style={styles.avatarImage}
@@ -317,13 +330,13 @@ const CoffeeCard = ({ post, onPress, onCommentPress, index = 0 }) => {
               ) : (
                 <View style={[styles.avatarFallback, { backgroundColor: colors.stone300 }]}>
                   <Text style={[styles.avatarText, { color: colors.backgroundWhite }]}>
-                    {post.author.name.charAt(0)}
+                    {post.author?.name ? post.author.name.charAt(0) : '?'}
                   </Text>
                 </View>
               )}
             </View>
-            <Text style={[styles.authorName, { color: colors.stone600 }]}>{post.author.name}</Text>
-          </View>
+            <Text style={[styles.authorName, { color: colors.stone600 }]}>{post.author?.name || '익명'}</Text>
+          </TouchableOpacity>
 
           {/* Interactions */}
           <View style={styles.interactions}>
@@ -375,7 +388,7 @@ const CoffeeCard = ({ post, onPress, onCommentPress, index = 0 }) => {
                   size={24}
                   color={colors.textTertiary}
                 />
-                <Text style={[styles.interactionText, { color: colors.textTertiary }]}>{post.comments}</Text>
+                <Text style={[styles.interactionText, { color: colors.textTertiary }]}>{post.comments || 0}</Text>
               </TouchableOpacity>
             </Animated.View>
           </View>

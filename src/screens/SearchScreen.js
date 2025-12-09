@@ -2,7 +2,7 @@
 // Converted from BeanLog_design/src/components/search/SearchPage.tsx
 // Features: Search input, recent searches, trending tags, map view toggle
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -29,6 +29,7 @@ import {
   getTrendingKeywords,
 } from '../services/searchService';
 import { getAllCafes } from '../services/cafeService';
+import { searchNaverPlaces } from '../services/naverSearchService';
 import NaverMapView from '../components/NaverMapView';
 import { useTheme } from '../contexts';
 import SkeletonLoader from '../components/SkeletonLoader';
@@ -133,8 +134,27 @@ const SearchScreen = ({ navigation, route }) => {
       setLoading(true);
       setSearched(true);
 
-      const results = await searchCafes(textToSearch, 20, flavorFilter);
-      setCafes(results);
+      // 1. Search Local DB
+      const localResults = await searchCafes(textToSearch, 20, flavorFilter);
+
+      // 2. Search Naver API (only if text is present)
+      let naverResults = [];
+      if (textToSearch.trim()) {
+        try {
+          naverResults = await searchNaverPlaces(textToSearch, 10);
+        } catch (naverError) {
+          console.error('Naver search error:', naverError);
+        }
+      }
+
+      // 3. Merge Results (Prioritize Local)
+      // Filter out Naver results that have same name as Local results
+      const uniqueNaverResults = naverResults.filter(nResult =>
+        !localResults.some(lResult => lResult.name === nResult.name)
+      );
+
+      const combinedResults = [...localResults, ...uniqueNaverResults];
+      setCafes(combinedResults);
 
       // Save to recent searches
       await addRecentSearch(textToSearch);
@@ -174,6 +194,57 @@ const SearchScreen = ({ navigation, route }) => {
     navigation.navigate('CafeDetail', { cafeId: cafe.id });
   };
 
+  // Map State
+  const [region, setRegion] = useState(null);
+  const [showSearchAreaButton, setShowSearchAreaButton] = useState(false);
+  const mapRef = useRef(null);
+
+  const handleRegionChange = (newRegion) => {
+    setRegion(newRegion);
+    setShowSearchAreaButton(true);
+  };
+
+  const handleSearchInArea = async () => {
+    if (!region) return;
+
+    setLoading(true);
+    setShowSearchAreaButton(false);
+
+    try {
+      // In a real app with geospatial query:
+      // const results = await searchCafesInRegion(region);
+
+      // For now, we simulate by re-fetching/filtering based on coordinates
+      // This is a mock implementation since we don't have real geo-query yet
+      // We just reload the cafes to simulate "refreshing" the view
+      const results = await searchCafes(searchText, 20, flavorFilter);
+      setCafes(results);
+
+      // In a real implementation, we would filter `results` to only those within `region`
+    } catch (error) {
+      console.error('Error searching in area:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCurrentLocation = () => {
+    // Mock current location (Seoul)
+    const SEOUL_REGION = {
+      latitude: 37.5665,
+      longitude: 126.9780,
+      latitudeDelta: 0.0922,
+      longitudeDelta: 0.0421,
+    };
+
+    if (mapRef.current) {
+      // If NaverMapView exposes a method to animate
+      // mapRef.current.animateToRegion(SEOUL_REGION);
+    }
+    setRegion(SEOUL_REGION);
+    setShowSearchAreaButton(false);
+  };
+
   // Render map view with real cafe data
   const renderMapView = () => {
     // Filter cafes that have coordinates
@@ -196,39 +267,49 @@ const SearchScreen = ({ navigation, route }) => {
 
     return (
       <View style={styles.mapContainer}>
-        {loading ? (
+        {loading && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={Colors.amber600} />
             <Text style={styles.loadingText}>카페 검색 중...</Text>
           </View>
-        ) : (
+        )}
+
+        {!loading && (
           <>
-            {cafesWithCoordinates.length === 0 && (
-              <View style={styles.emptyResults}>
-                <EmptyState
-                  message="검색 결과가 없습니다"
-                  icon={<Ionicons name="search-outline" size={48} color={Colors.stone300} />}
-                />
-                <Text style={styles.emptyResultsSubtext}>다른 검색어로 다시 시도해보세요</Text>
-              </View>
-            )}
             {/* Naver Map View */}
             <NaverMapView
+              ref={mapRef}
               cafes={cafesWithCoordinates}
               onMarkerPress={handleCafePress}
               style={styles.map}
+              onRegionChangeComplete={handleRegionChange}
+              initialRegion={{
+                latitude: 37.5665,
+                longitude: 126.9780,
+                zoom: 13,
+              }}
             />
 
             {/* Search this area button */}
-            <View style={styles.mapSearchButtonContainer} pointerEvents="box-none">
-              <TouchableOpacity
-                style={styles.mapSearchButton}
-                onPress={handleMapSearch}
-              >
-                <Ionicons name="navigate" size={14} color={Colors.amber600} />
-                <Text style={styles.mapSearchButtonText}>이 지역 재검색</Text>
-              </TouchableOpacity>
-            </View>
+            {showSearchAreaButton && (
+              <View style={styles.mapSearchButtonContainer} pointerEvents="box-none">
+                <TouchableOpacity
+                  style={styles.mapSearchButton}
+                  onPress={handleSearchInArea}
+                >
+                  <Ionicons name="refresh" size={14} color={Colors.amber600} />
+                  <Text style={styles.mapSearchButtonText}>이 지역에서 다시 검색</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Current Location Button */}
+            <TouchableOpacity
+              style={styles.currentLocationButton}
+              onPress={handleCurrentLocation}
+            >
+              <Ionicons name="locate" size={24} color={Colors.stone800} />
+            </TouchableOpacity>
 
             {/* Bottom info card */}
             <View style={[styles.mapInfoCard, { backgroundColor: colors.backgroundWhite, borderColor: colors.border }]}>
@@ -259,26 +340,40 @@ const SearchScreen = ({ navigation, route }) => {
   };
 
   // Render cafe result item
-  const renderCafeItem = ({ item }) => (
-    <TouchableOpacity
-      style={[styles.cafeResultItem, { backgroundColor: colors.backgroundWhite, borderColor: colors.border }]}
-      onPress={() => handleCafePress(item)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.cafeResultContent}>
-        <View style={[styles.cafeResultIcon, { backgroundColor: colors.stone100 }]}>
-          <Ionicons name="cafe" size={20} color={colors.textSecondary} />
+  const renderCafeItem = ({ item }) => {
+    const isLocal = !item.isNaverResult;
+
+    return (
+      <TouchableOpacity
+        style={[styles.cafeResultItem, { backgroundColor: colors.backgroundWhite, borderColor: colors.border }]}
+        onPress={() => handleCafePress(item)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.cafeResultContent}>
+          <View style={[styles.cafeResultIcon, { backgroundColor: isLocal ? Colors.amber100 : colors.stone100 }]}>
+            <Ionicons name={isLocal ? "ribbon" : "cafe"} size={20} color={isLocal ? Colors.amber600 : colors.textSecondary} />
+          </View>
+          <View style={styles.cafeResultText}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={[styles.cafeResultName, { color: colors.textPrimary }]}>{item.name}</Text>
+              {isLocal && (
+                <View style={{ backgroundColor: Colors.amber100, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                  <Text style={{ fontSize: 10, color: Colors.amber700, fontWeight: '600' }}>인증됨</Text>
+                </View>
+              )}
+            </View>
+            <Text style={[styles.cafeResultAddress, { color: colors.textSecondary }]} numberOfLines={1}>
+              {item.address || '주소 정보 없음'}
+            </Text>
+            {!isLocal && (
+              <Text style={{ fontSize: 11, color: Colors.brand, marginTop: 2 }}>✨ 첫 리뷰를 작성해보세요!</Text>
+            )}
+          </View>
         </View>
-        <View style={styles.cafeResultText}>
-          <Text style={[styles.cafeResultName, { color: colors.textPrimary }]}>{item.name}</Text>
-          <Text style={[styles.cafeResultAddress, { color: colors.textSecondary }]} numberOfLines={1}>
-            {item.address || '주소 정보 없음'}
-          </Text>
-        </View>
-      </View>
-      <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
-    </TouchableOpacity>
-  );
+        <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
+      </TouchableOpacity>
+    );
+  };
 
   // Render list view
   const renderListView = () => {
@@ -758,6 +853,23 @@ const styles = StyleSheet.create({
     fontSize: Typography.captionSmall.fontSize,
     fontWeight: Typography.label.fontWeight,
     color: Colors.stone800,
+  },
+  currentLocationButton: {
+    position: 'absolute',
+    bottom: 100, // Above the bottom card
+    right: 16,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.backgroundWhite,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+    zIndex: 10,
   },
   mapPin: {
     position: 'absolute',

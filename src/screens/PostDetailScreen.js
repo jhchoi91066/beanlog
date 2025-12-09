@@ -307,6 +307,8 @@ const PostDetailScreen = ({ route, navigation }) => {
                         ))}
                     </View>
 
+
+
                     <View style={styles.statsRow}>
                         <View style={styles.statButton}>
                             <AnimatedHeart
@@ -480,6 +482,7 @@ const styles = StyleSheet.create({
         gap: 8,
         marginBottom: 20,
     },
+
     tag: {
         backgroundColor: Colors.background,
         paddingHorizontal: 10,
