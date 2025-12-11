@@ -2,7 +2,9 @@
 // Fetches reviews from all users for the community feed
 
 import { collection, query, orderBy, limit, getDocs, where } from 'firebase/firestore';
+
 import { db } from './firebase';
+import { MOCK_POSTS } from './mockData';
 
 /**
  * Get recent reviews from all users for community feed
@@ -225,6 +227,41 @@ export const getTopRatedReviews = async (limitCount = 10) => {
     if (error.code === 'failed-precondition') {
       console.warn('Firestore index needed for ranking. Please create the index.');
       console.warn(error.message); // Log the message containing the link
+      return [];
+    }
+    throw error;
+  }
+};
+/**
+ * Get reviews by user ID
+ * @param {string} userId
+ * @returns {Promise<Array>} Array of reviews for the user
+ */
+export const getReviewsByUserId = async (userId) => {
+  // Handle mock users
+  if (userId && userId.startsWith('mock-')) {
+    console.log('Fetching mock reviews for:', userId);
+    return MOCK_POSTS.filter(post => post.userId === userId);
+  }
+
+  try {
+    const reviewsRef = collection(db, 'reviews');
+    const q = query(
+      reviewsRef,
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc')
+    );
+    const snapshot = await getDocs(q);
+
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  } catch (error) {
+    console.error('Error fetching reviews by user:', error);
+    // If index missing, return empty but warn
+    if (error.code === 'failed-precondition') {
+      console.warn('Index needed for user profile reviews.');
       return [];
     }
     throw error;

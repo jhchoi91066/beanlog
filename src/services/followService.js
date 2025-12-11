@@ -1,36 +1,38 @@
 import {
     collection,
-    doc,
-    setDoc,
+    addDoc,
     deleteDoc,
-    getDoc,
+    doc,
     getDocs,
     query,
     where,
-    serverTimestamp
+    serverTimestamp,
+    getCountFromServer
 } from 'firebase/firestore';
 import { db } from './firebase';
 
+const COLLECTION_NAME = 'follows';
+
 /**
  * Follow a user
- * @param {string} currentUserId - ID of the user performing the follow
- * @param {string} targetUserId - ID of the user to be followed
+ * @param {string} followerId - ID of the user creating the follow
+ * @param {string} followingId - ID of the target user to follow
  */
-export const followUser = async (currentUserId, targetUserId) => {
-    if (!currentUserId || !targetUserId || currentUserId === targetUserId) return;
-
+export const followUser = async (followerId, followingId) => {
     try {
-        // 1. Create a document in 'follows' collection
-        // Structure: follows/{followerId_followingId}
-        const followId = `${currentUserId}_${targetUserId}`;
-        await setDoc(doc(db, 'follows', followId), {
-            followerId: currentUserId,
-            followingId: targetUserId,
-            createdAt: serverTimestamp()
-        });
+        if (!followerId || !followingId) throw new Error('Invalid user IDs');
+        if (followerId === followingId) throw new Error('Cannot follow yourself');
 
-        // Optional: Update follower/following counts in user profiles (omitted for simplicity, can be done via Cloud Functions)
-        console.log(`User ${currentUserId} followed ${targetUserId}`);
+        // Check if already following
+        const isFollowing = await checkIsFollowing(followerId, followingId);
+        if (isFollowing) return;
+
+        await addDoc(collection(db, COLLECTION_NAME), {
+            followerId,
+            followingId,
+            createdAt: serverTimestamp(),
+        });
+        return true;
     } catch (error) {
         console.error('Error following user:', error);
         throw error;
@@ -39,16 +41,28 @@ export const followUser = async (currentUserId, targetUserId) => {
 
 /**
  * Unfollow a user
- * @param {string} currentUserId 
- * @param {string} targetUserId 
+ * @param {string} followerId 
+ * @param {string} followingId 
  */
-export const unfollowUser = async (currentUserId, targetUserId) => {
-    if (!currentUserId || !targetUserId) return;
-
+export const unfollowUser = async (followerId, followingId) => {
     try {
-        const followId = `${currentUserId}_${targetUserId}`;
-        await deleteDoc(doc(db, 'follows', followId));
-        console.log(`User ${currentUserId} unfollowed ${targetUserId}`);
+        const q = query(
+            collection(db, COLLECTION_NAME),
+            where('followerId', '==', followerId),
+            where('followingId', '==', followingId)
+        );
+
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) return false;
+
+        // Theoretically should be only one doc, but iterate just in case
+        const deletePromises = snapshot.docs.map(docSnapshot =>
+            deleteDoc(doc(db, COLLECTION_NAME, docSnapshot.id))
+        );
+
+        await Promise.all(deletePromises);
+        return true;
     } catch (error) {
         console.error('Error unfollowing user:', error);
         throw error;
@@ -56,19 +70,19 @@ export const unfollowUser = async (currentUserId, targetUserId) => {
 };
 
 /**
- * Check if current user is following target user
- * @param {string} currentUserId 
- * @param {string} targetUserId 
- * @returns {Promise<boolean>}
+ * Check if relationship exists
+ * @param {string} followerId 
+ * @param {string} followingId 
  */
-export const checkIsFollowing = async (currentUserId, targetUserId) => {
-    if (!currentUserId || !targetUserId) return false;
-
+export const checkIsFollowing = async (followerId, followingId) => {
     try {
-        const followId = `${currentUserId}_${targetUserId}`;
-        const docRef = doc(db, 'follows', followId);
-        const docSnap = await getDoc(docRef);
-        return docSnap.exists();
+        const q = query(
+            collection(db, COLLECTION_NAME),
+            where('followerId', '==', followerId),
+            where('followingId', '==', followingId)
+        );
+        const snapshot = await getDocs(q);
+        return !snapshot.empty;
     } catch (error) {
         console.error('Error checking follow status:', error);
         return false;
@@ -76,33 +90,37 @@ export const checkIsFollowing = async (currentUserId, targetUserId) => {
 };
 
 /**
- * Get list of users that the target user is following
+ * Get count of followers for a user
  * @param {string} userId 
- * @returns {Promise<Array>} Array of following user IDs
  */
-export const getFollowing = async (userId) => {
+export const getFollowerCount = async (userId) => {
     try {
-        const q = query(collection(db, 'follows'), where('followerId', '==', userId));
-        const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => doc.data().followingId);
+        const q = query(
+            collection(db, COLLECTION_NAME),
+            where('followingId', '==', userId)
+        );
+        const snapshot = await getCountFromServer(q);
+        return snapshot.data().count;
     } catch (error) {
-        console.error('Error getting following list:', error);
-        return [];
+        console.error('Error getting follower count:', error);
+        return 0;
     }
 };
 
 /**
- * Get list of followers for the target user
+ * Get count of users followed by a user
  * @param {string} userId 
- * @returns {Promise<Array>} Array of follower user IDs
  */
-export const getFollowers = async (userId) => {
+export const getFollowingCount = async (userId) => {
     try {
-        const q = query(collection(db, 'follows'), where('followingId', '==', userId));
-        const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => doc.data().followerId);
+        const q = query(
+            collection(db, COLLECTION_NAME),
+            where('followerId', '==', userId)
+        );
+        const snapshot = await getCountFromServer(q);
+        return snapshot.data().count;
     } catch (error) {
-        console.error('Error getting followers list:', error);
-        return [];
+        console.error('Error getting following count:', error);
+        return 0;
     }
 };

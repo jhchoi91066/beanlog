@@ -250,6 +250,14 @@ const AppNavigator = () => {
           component={FeedHomeScreen}
           options={{ headerTitle: 'BeanLog' }}
         />
+        <Stack.Screen
+          name="UserProfile"
+          component={UserProfileScreen}
+          options={{
+            headerTitle: '',
+            headerBackTitle: '',
+          }}
+        />
       </Stack.Navigator>
     );
   };
