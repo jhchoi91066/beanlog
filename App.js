@@ -7,15 +7,30 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, ThemeProvider } from './src/contexts';
 import { AppNavigator } from './src/navigation';
 
-export default function App() {
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import * as Sentry from '@sentry/react-native';
+
+// TODO: Replace with your actual Sentry DSN
+Sentry.init({
+  dsn: 'YOUR_SENTRY_DSN_HERE',
+  debug: true, // Enable debug in dev mode
+});
+
+const queryClient = new QueryClient();
+
+function App() {
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <ThemeProvider>
-          <AppNavigator />
-          <StatusBar style="auto" />
-        </ThemeProvider>
-      </AuthProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <ThemeProvider>
+            <AppNavigator />
+            <StatusBar style="auto" />
+          </ThemeProvider>
+        </AuthProvider>
+      </QueryClientProvider>
     </SafeAreaProvider>
   );
 }
+
+export default Sentry.wrap(App);

@@ -33,6 +33,7 @@ import { useTheme } from '../contexts';
 import { useAuth } from '../contexts/AuthContext';
 
 import { MOCK_POSTS } from '../services/mockData';
+import { useFeedQuery } from '../hooks/useFeedQuery';
 
 
 
@@ -44,12 +45,6 @@ const FeedHomeScreen = ({ navigation }) => {
   const { user } = useAuth(); // Get user for personalization
   const [activeTab, setActiveTab] = useState('feed');
   const [selectedFilter, setSelectedFilter] = useState('전체');
-  const [posts, setPosts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [collections, setCollections] = useState([]); // Curated collections
-  const [userPreferences, setUserPreferences] = useState(null); // Store user preferences
-  const [showFilterModal, setShowFilterModal] = useState(false);
   const [flavorFilter, setFlavorFilter] = useState({
     acidity: 0,
     sweetness: 0,
@@ -57,6 +52,14 @@ const FeedHomeScreen = ({ navigation }) => {
     bitterness: 0,
     aroma: 0,
   });
+
+  // Query integration
+  const {
+    data: feedData,
+    isLoading: isFeedLoading,
+    refetch,
+    isRefetching
+  } = useFeedQuery(userPreferences, flavorFilter, activeTab === 'feed');
 
   // Location & Nearby cafes state
   const [userLocation, setUserLocation] = useState(null);
@@ -67,7 +70,7 @@ const FeedHomeScreen = ({ navigation }) => {
 
   // Load feed data on mount and when filter changes
   useEffect(() => {
-    loadPreferencesAndFeed();
+    loadPreferencesAndCollections();
 
     // Prepare featured cafes from mock posts
     const featured = MOCK_POSTS.slice(0, 3).map(post => ({
@@ -81,13 +84,6 @@ const FeedHomeScreen = ({ navigation }) => {
     setFeaturedCafes(featured);
   }, []);
 
-  useEffect(() => {
-    // Reload when filter changes
-    if (activeTab === 'feed') {
-      loadFeed();
-    }
-  }, [selectedFilter, activeTab]);
-
   // Request location when "내 주변" tab is activated
   useEffect(() => {
     if (activeTab === 'nearby' && !userLocation && locationPermission !== 'denied') {
@@ -96,21 +92,19 @@ const FeedHomeScreen = ({ navigation }) => {
   }, [activeTab]);
 
   /**
-   * Load user preferences first, then load feed
+   * Load user preferences and collections
    */
-  const loadPreferencesAndFeed = async () => {
+  const loadPreferencesAndCollections = async () => {
     try {
-      // Try to get preferences from AsyncStorage (saved during onboarding)
       const storedPrefs = await AsyncStorage.getItem('userPreferences');
       if (storedPrefs) {
-        const parsedPrefs = JSON.parse(storedPrefs);
-        setUserPreferences(parsedPrefs);
-        console.log('Loaded user preferences:', parsedPrefs);
+        setUserPreferences(JSON.parse(storedPrefs));
       }
+
+      const fetchedCollections = await getAllCollections();
+      setCollections(fetchedCollections);
     } catch (error) {
-      console.error('Error loading preferences:', error);
-    } finally {
-      loadFeed();
+      console.error('Error loading initial data:', error);
     }
   };
 
@@ -118,70 +112,7 @@ const FeedHomeScreen = ({ navigation }) => {
    * Load community feed from Firebase
    * Applies current filter selection and personalization
    */
-  const loadFeed = async () => {
-    try {
-      setLoading(true);
-
-      // Fetch collections
-      const fetchedCollections = await getAllCollections();
-      console.log('Fetched collections:', fetchedCollections.length);
-      setCollections(fetchedCollections);
-
-      let reviews;
-
-      if (selectedFilter === '전체') {
-        // If "All" is selected, try to show personalized feed first
-        // Check if filter is active
-        const isFilterActive = Object.values(flavorFilter).some(val => val > 0);
-
-        if (userPreferences || isFilterActive) {
-          console.log('Fetching personalized feed...');
-          reviews = await getPersonalizedFeed(userPreferences || {}, 20, flavorFilter);
-
-          // If personalized feed is empty (no matches), fallback to recent ONLY if no filter is active
-          // If filter is active, we should show empty state or filtered results, not random recent posts
-          if (reviews.length === 0 && !isFilterActive) {
-            console.log('Personalized feed empty, falling back to recent');
-            reviews = await getRecentReviews(20);
-          }
-        } else {
-          // No preferences and no filter, show recent
-          reviews = await getRecentReviews(20);
-        }
-      } else {
-        // Map UI filter names to review tags
-        const tagMap = {
-          '산미있는': '산미',
-          '고소한': '고소한',
-          '디카페인': '디카페인',
-          '핸드드립': '핸드드립',
-          '라떼맛집': '라떼',
-          '뷰맛집': '뷰',
-        };
-        const tag = tagMap[selectedFilter] || selectedFilter;
-        reviews = await getReviewsByTag(tag, 20);
-      }
-
-      // Transform reviews to post format for display
-      const transformedPosts = reviews.map(transformReviewToPost);
-
-      // Use Firebase data if available, otherwise fallback to mock data
-      if (transformedPosts.length > 0) {
-        setPosts(transformedPosts);
-      } else {
-        // Fallback to MOCK_POSTS when Firebase is empty
-        console.log('📝 Using mock data (Firebase is empty)');
-        setPosts(MOCK_POSTS);
-      }
-    } catch (error) {
-      console.error('Error loading feed:', error);
-      // On error, fallback to mock data
-      console.log('⚠️ Using mock data (Firebase error)');
-      setPosts(MOCK_POSTS);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // loadFeed removed - replaced by useFeedQuery
 
   /**
    * Load ranking feed
@@ -209,14 +140,21 @@ const FeedHomeScreen = ({ navigation }) => {
    * Handle pull-to-refresh
    */
   const handleRefresh = async () => {
-    setRefreshing(true);
     if (activeTab === 'ranking') {
       await loadRanking();
     } else {
-      await loadPreferencesAndFeed();
+      await refetch();
     }
-    setRefreshing(false);
   };
+
+  // Compute posts to display
+  const displayPosts = (activeTab === 'feed')
+    ? (feedData || []).map(transformReviewToPost).length > 0
+      ? (feedData || []).map(transformReviewToPost)
+      : MOCK_POSTS // Fallback to mock if empty
+    : posts; // For ranking tab which still uses local state
+
+  const isLoading = activeTab === 'feed' ? isFeedLoading : loading;
 
   /**
    * Transform Firebase review object to CoffeeCard post format
