@@ -8,17 +8,18 @@ import { AuthProvider, ThemeProvider } from './src/contexts';
 import { AppNavigator } from './src/navigation';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import * as Sentry from '@sentry/react-native';
 
-// TODO: Replace with your actual Sentry DSN
-Sentry.init({
-  dsn: 'YOUR_SENTRY_DSN_HERE',
-  debug: true, // Enable debug in dev mode
-});
 
 const queryClient = new QueryClient();
 
-function App() {
+import { initRemoteConfig } from './src/services/remoteConfig';
+import React, { useEffect } from 'react';
+
+export default function App() {
+  useEffect(() => {
+    initRemoteConfig();
+  }, []);
+
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
@@ -32,5 +33,3 @@ function App() {
     </SafeAreaProvider>
   );
 }
-
-export default Sentry.wrap(App);

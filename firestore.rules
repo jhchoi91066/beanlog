@@ -80,5 +80,11 @@ service cloud.firestore {
       allow create: if request.auth != null && request.resource.data.followerId == request.auth.uid;
       allow delete: if request.auth != null && resource.data.followerId == request.auth.uid;
     }
+
+    // Config (Remote Config fallback)
+    match /config/{configId} {
+      allow read: if true;
+      allow write: if false; // Only admin
+    }
   }
 }

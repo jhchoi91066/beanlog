@@ -1,7 +1,7 @@
 // Feed Service - Community reviews feed management
 // Fetches reviews from all users for the community feed
 
-import { collection, query, orderBy, limit, getDocs, where } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, where, startAfter } from 'firebase/firestore';
 
 import { db } from './firebase';
 import { MOCK_POSTS } from './mockData';
@@ -29,20 +29,35 @@ import { MOCK_POSTS } from './mockData';
  *   createdAt: Timestamp
  * }
  */
-export const getRecentReviews = async (limitCount = 20) => {
+/**
+ * Get recent reviews from all users for community feed
+ * @param {number} limitCount - Number of reviews to fetch (default 20)
+ * @param {Object} lastDoc - The last document snapshot from the previous fetch (for pagination)
+ * @returns {Promise<Object>} { reviews: Array, lastVisible: Object }
+ */
+export const getRecentReviews = async (limitCount = 20, lastDoc = null) => {
   try {
     const reviewsRef = collection(db, 'reviews');
-    const q = query(
-      reviewsRef,
-      orderBy('createdAt', 'desc'),
-      limit(limitCount)
-    );
-    const snapshot = await getDocs(q);
 
-    return snapshot.docs.map(doc => ({
+    const qConstraints = [];
+    qConstraints.push(orderBy('createdAt', 'desc'));
+
+    if (lastDoc) {
+      qConstraints.push(startAfter(lastDoc));
+    }
+
+    qConstraints.push(limit(limitCount));
+
+    const q = query(reviewsRef, ...qConstraints);
+    const snapshot = await getDocs(q);
+    const lastVisible = snapshot.docs[snapshot.docs.length - 1];
+
+    const reviews = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
+
+    return { reviews, lastVisible };
   } catch (error) {
     console.error('Error fetching recent reviews:', error);
     throw error;
@@ -55,29 +70,42 @@ export const getRecentReviews = async (limitCount = 20) => {
  * @param {number} limitCount - Number of reviews to fetch
  * @returns {Promise<Array>} Filtered array of reviews
  */
-export const getReviewsByTag = async (tag, limitCount = 20) => {
+/**
+ * Get reviews filtered by basic tag
+ * @param {string} tag - Tag to filter by
+ * @param {number} limitCount
+ * @param {Object} lastDoc - Cursor for pagination
+ * @returns {Promise<Object>} { reviews, lastVisible }
+ */
+export const getReviewsByTag = async (tag, limitCount = 20, lastDoc = null) => {
   try {
     const reviewsRef = collection(db, 'reviews');
-    // Query reviews where basicTags array contains the specified tag
-    const q = query(
-      reviewsRef,
-      where('basicTags', 'array-contains', tag),
-      orderBy('createdAt', 'desc'),
-      limit(limitCount)
-    );
-    const snapshot = await getDocs(q);
 
-    return snapshot.docs.map(doc => ({
+    const qConstraints = [];
+    qConstraints.push(where('basicTags', 'array-contains', tag));
+    qConstraints.push(orderBy('createdAt', 'desc'));
+
+    if (lastDoc) {
+      qConstraints.push(startAfter(lastDoc));
+    }
+
+    qConstraints.push(limit(limitCount));
+
+    const q = query(reviewsRef, ...qConstraints);
+    const snapshot = await getDocs(q);
+    const lastVisible = snapshot.docs[snapshot.docs.length - 1];
+
+    const reviews = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
+
+    return { reviews, lastVisible };
   } catch (error) {
     console.error('Error fetching reviews by tag:', error);
-    // If the error is due to missing index, return empty array
-    // Firebase will show console warning about creating the index
     if (error.code === 'failed-precondition') {
-      console.warn('Firestore index needed for tag filtering. Please create the index.');
-      return [];
+      console.warn('Firestore index needed for tag filtering.');
+      return { reviews: [], lastVisible: null };
     }
     throw error;
   }
@@ -121,51 +149,75 @@ export const getReviewsByAdvancedTag = async (tag, limitCount = 20) => {
  * @param {Object} flavorFilter - Optional filter { acidity, sweetness, body, bitterness, aroma }
  * @returns {Promise<Array>} Filtered and sorted array of reviews
  */
-export const getPersonalizedFeed = async (preferences, limitCount = 10, flavorFilter = null) => {
+/**
+ * Get personalized feed based on user preferences and optional flavor filter
+ * @param {Object} preferences - User preferences
+ * @param {number} limitCount
+ * @param {Object} flavorFilter
+ * @param {Object} lastDoc - Cursor for pagination
+ * @returns {Promise<Object>} { reviews, lastVisible }
+ */
+export const getPersonalizedFeed = async (preferences, limitCount = 10, flavorFilter = null, lastDoc = null) => {
   try {
     const reviewsRef = collection(db, 'reviews');
     let q;
     let usingDbFilter = false;
 
+    // console.log('getPersonalizedFeed called with:', { limitCount, hasFilter: !!flavorFilter, hasLastDoc: !!lastDoc });
+    // if (lastDoc) console.log('lastDoc type:', lastDoc.constructor.name);
+
     // 1. Optimize: Use Firestore Query if explicit filter is present
-    // This reduces reads from 100 -> limitCount (huge cost saving)
     if (flavorFilter) {
-      // Find the active filter field (assuming single select for now or prioritizing one)
-      // We prioritize the field with the highest value
       const activeField = Object.keys(flavorFilter).find(key => flavorFilter[key] > 0);
 
       if (activeField) {
-        console.log(`[Optimization] Using DB Filter for ${activeField}`);
-        q = query(
-          reviewsRef,
-          where(`flavorProfile.${activeField}`, '>=', flavorFilter[activeField]),
-          orderBy(`flavorProfile.${activeField}`, 'desc'),
-          limit(limitCount)
-        );
+        // console.log(`[Optimization] Using DB Filter for ${activeField}`);
+        const qConstraints = [];
+        qConstraints.push(where(`flavorProfile.${activeField}`, '>=', flavorFilter[activeField]));
+        qConstraints.push(orderBy(`flavorProfile.${activeField}`, 'desc'));
+
+        if (lastDoc) {
+          qConstraints.push(startAfter(lastDoc));
+        }
+
+        qConstraints.push(limit(limitCount));
+
+        qConstraints.push(limit(limitCount));
+
+        // console.log('Building DB Filter Query. Constraints:', qConstraints.length);
+        q = query(reviewsRef, ...qConstraints);
         usingDbFilter = true;
       }
     }
 
-    // 2. If no DB filter used, fetch recent posts (but limit to 30 instead of 100 for cost efficiency)
+    // 2. If no DB filter used, fetch recent posts
     if (!usingDbFilter) {
-      console.log('[Optimization] Fetching recent for client-side ranking (Limit 30)');
-      q = query(
-        reviewsRef,
-        orderBy('createdAt', 'desc'),
-        limit(30) // Reduced from 100 to 30 for cost optimization
-      );
+      // console.log('[Optimization] Fetching recent for client-side ranking');
+      const qConstraints = [];
+      qConstraints.push(orderBy('createdAt', 'desc'));
+
+      if (lastDoc) {
+        qConstraints.push(startAfter(lastDoc));
+      }
+
+      qConstraints.push(limit(limitCount));
+
+      qConstraints.push(limit(limitCount));
+
+      // console.log('Building Recent Query. Constraints:', qConstraints.length);
+      q = query(reviewsRef, ...qConstraints);
     }
 
     const snapshot = await getDocs(q);
+    const lastVisible = snapshot.docs[snapshot.docs.length - 1];
     const fetchedReviews = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
     // 3. Score and Sort (Client-side)
-    // Even if we used DB filter, we still score them to respect user preferences
     const scoredReviews = fetchedReviews.map(review => {
       let score = 0;
       const profile = review.flavorProfile || {};
 
-      // --- Scoring Logic ---
+      // Scoring Logic...
       // Roast Match
       if (preferences?.roast && review.roasting) {
         if (preferences.roast.toLowerCase() === review.roasting.toLowerCase()) score += 5;
@@ -189,16 +241,21 @@ export const getPersonalizedFeed = async (preferences, limitCount = 10, flavorFi
     });
 
     // 4. Sort by score desc
-    return scoredReviews.sort((a, b) => b.score - a.score);
+    // Note: Re-sorting client side breaks strict generic pagination order if we rely on createdAt for next fetch.
+    // For now, infinite scroll on personalized feed mixed with scoring is complex.
+    // We will return the reviews sorted by score, but the cursor (lastVisible) corresponds to the DB sort (createdAt or flavor).
+    // This might cause some "jumping" or suboptimal ordering across pages, but is acceptable MVP.
+    const sortedReviews = scoredReviews.sort((a, b) => b.score - a.score);
+
+    return { reviews: sortedReviews, lastVisible };
 
   } catch (error) {
     console.error('Error fetching personalized feed:', error);
-    // Fallback to recent if query fails (e.g., missing index)
     if (error.code === 'failed-precondition') {
       console.warn('Index missing, falling back to recent');
-      return getRecentReviews(limitCount);
+      return getRecentReviews(limitCount, lastDoc);
     }
-    return [];
+    return { reviews: [], lastVisible: null };
   }
 };
 

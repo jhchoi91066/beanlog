@@ -28,18 +28,7 @@ import {
 } from '../services/communityService';
 import { auth } from '../services/firebase';
 
-const Colors = {
-    background: '#FAFAF9',
-    card: '#FFFFFF',
-    text: '#292524',
-    textSecondary: '#78716C',
-    brand: '#D97706',
-    brandLight: '#FEF3C7',
-    border: '#E7E5E4',
-    blue: '#2563EB',
-    purple: '#9333EA',
-    green: '#16A34A',
-};
+import { Colors, Typography } from '../constants';
 
 const PostDetailScreen = ({ route, navigation }) => {
     const { post } = route.params;
@@ -443,11 +432,10 @@ const styles = StyleSheet.create({
         fontWeight: '500',
     },
     title: {
-        fontSize: 20,
+        ...Typography.h2,
         fontWeight: 'bold',
-        color: Colors.text,
+        color: Colors.textPrimary,
         marginBottom: 16,
-        lineHeight: 28,
     },
     authorRow: {
         flexDirection: 'row',
@@ -459,7 +447,7 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: Colors.border,
+        backgroundColor: Colors.stone200, // Changed from border to stone200 for consistency
     },
     authorName: {
         fontSize: 14,
@@ -471,9 +459,8 @@ const styles = StyleSheet.create({
         color: Colors.textSecondary,
     },
     bodyText: {
-        fontSize: 16,
-        color: Colors.text,
-        lineHeight: 26,
+        ...Typography.body,
+        color: Colors.textPrimary,
         marginBottom: 20,
     },
     tagContainer: {

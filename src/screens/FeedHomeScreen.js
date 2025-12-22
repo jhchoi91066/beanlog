@@ -31,20 +31,86 @@ import { getAllCafes } from '../services/cafeService';
 import { getAllCollections } from '../services/collectionService';
 import { useTheme } from '../contexts';
 import { useAuth } from '../contexts/AuthContext';
+import Shadows from '../constants/shadows';
 
 import { MOCK_POSTS } from '../services/mockData';
 import { useFeedQuery } from '../hooks/useFeedQuery';
+import { useRemoteConfig } from '../hooks/useRemoteConfig';
 
 
 
 // Filter tags for coffee preferences (matches web design)
 const FILTER_TAGS = ['전체', '산미있는', '고소한', '디카페인', '핸드드립', '라떼맛집', '뷰맛집'];
 
+/**
+ * Format Firebase timestamp to relative time string
+ */
+const formatDateRelative = (timestamp) => {
+  if (!timestamp) return '';
+  try {
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return '방금 전';
+    if (diffMins < 60) return `${diffMins}분 전`;
+    if (diffHours < 24) return `${diffHours}시간 전`;
+    if (diffDays < 30) return `${diffDays}일 전`;
+
+    // Format as YYYY.MM.DD for older posts
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}.${month}.${day}`;
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return '';
+  }
+};
+
+/**
+ * Transform Firebase review object to CoffeeCard post format
+ */
+const transformReviewToPost = (review) => {
+  return {
+    id: review.id,
+    cafeName: review.cafeName || '카페 정보 없음',
+    coffeeName: review.coffeeName || '커피 정보 없음',
+    location: review.cafeAddress || review.location || '',
+    imageUrl: review.photoUrls && review.photoUrls.length > 0 ? review.photoUrls[0] : null,
+    rating: review.rating || 0,
+    tags: review.basicTags || [],
+    flavorProfile: review.flavorProfile || {
+      acidity: review.acidity || 0,
+      sweetness: review.sweetness || 0,
+      body: review.body || 0,
+      bitterness: review.bitterness || 0,
+      aroma: review.aroma || 0,
+    },
+    author: {
+      name: review.userDisplayName || '익명',
+      avatar: review.userPhotoURL || null,
+      level: 'Barista',
+    },
+    description: review.comment || '',
+    likes: 0,
+    comments: 0,
+    date: formatDateRelative(review.createdAt),
+    cafeId: review.cafeId,
+    score: review.score,
+  };
+};
+
 const FeedHomeScreen = ({ navigation }) => {
   const { colors } = useTheme();
   const { user } = useAuth(); // Get user for personalization
+  const { showSeasonalBanner, bannerTitle, bannerText } = useRemoteConfig();
   const [activeTab, setActiveTab] = useState('feed');
   const [selectedFilter, setSelectedFilter] = useState('전체');
+  const [userPreferences, setUserPreferences] = useState(null); // Store user preferences
   const [flavorFilter, setFlavorFilter] = useState({
     acidity: 0,
     sweetness: 0,
@@ -53,12 +119,21 @@ const FeedHomeScreen = ({ navigation }) => {
     aroma: 0,
   });
 
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [collections, setCollections] = useState([]); // Curated collections
+  const [showFilterModal, setShowFilterModal] = useState(false);
+
   // Query integration
   const {
     data: feedData,
     isLoading: isFeedLoading,
     refetch,
-    isRefetching
+    isRefetching,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage
   } = useFeedQuery(userPreferences, flavorFilter, activeTab === 'feed');
 
   // Location & Nearby cafes state
@@ -133,6 +208,7 @@ const FeedHomeScreen = ({ navigation }) => {
       setPosts(MOCK_POSTS);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -148,80 +224,23 @@ const FeedHomeScreen = ({ navigation }) => {
   };
 
   // Compute posts to display
+  const allPosts = (activeTab === 'feed' && feedData)
+    ? feedData.pages.flatMap(page => page.reviews || []).map(transformReviewToPost)
+    : [];
+
   const displayPosts = (activeTab === 'feed')
-    ? (feedData || []).map(transformReviewToPost).length > 0
-      ? (feedData || []).map(transformReviewToPost)
-      : MOCK_POSTS // Fallback to mock if empty
+    ? (allPosts.length > 0 ? allPosts : MOCK_POSTS)
     : posts; // For ranking tab which still uses local state
 
   const isLoading = activeTab === 'feed' ? isFeedLoading : loading;
 
-  /**
-   * Transform Firebase review object to CoffeeCard post format
-   */
-  const transformReviewToPost = (review) => {
-    // Debug: Log review data to check if cafeName and coffeeName exist
-    if (!review.cafeName || !review.coffeeName) {
-      // console.log('Missing cafe/coffee name in review:', review.id);
-    }
-
-    return {
-      id: review.id,
-      cafeName: review.cafeName || '카페 정보 없음',
-      coffeeName: review.coffeeName || '커피 정보 없음',
-      location: review.cafeAddress || review.location || '',
-      imageUrl: review.photoUrls && review.photoUrls.length > 0 ? review.photoUrls[0] : null,
-      rating: review.rating || 0,
-      tags: review.basicTags || [],
-      flavorProfile: review.flavorProfile || {
-        acidity: review.acidity || 0,
-        sweetness: review.sweetness || 0,
-        body: review.body || 0,
-        bitterness: review.bitterness || 0,
-        aroma: review.aroma || 0,
-      },
-      author: {
-        name: review.userDisplayName || '익명',
-        avatar: review.userPhotoURL || null,
-        level: 'Barista', // Default level, can be enhanced later
-      },
-      description: review.comment || '',
-      likes: 0, // v0.2 feature
-      comments: 0, // v0.2 feature
-      date: formatDateRelative(review.createdAt),
-      cafeId: review.cafeId,
-      score: review.score, // Include matching score if available
-    };
-  };
-
-  /**
-   * Format Firebase timestamp to relative time string
-   */
-  const formatDateRelative = (timestamp) => {
-    if (!timestamp) return '';
-    try {
-      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-      const now = new Date();
-      const diffMs = now - date;
-      const diffMins = Math.floor(diffMs / 60000);
-      const diffHours = Math.floor(diffMs / 3600000);
-      const diffDays = Math.floor(diffMs / 86400000);
-
-      if (diffMins < 1) return '방금 전';
-      if (diffMins < 60) return `${diffMins}분 전`;
-      if (diffHours < 24) return `${diffHours}시간 전`;
-      if (diffDays < 30) return `${diffDays}일 전`;
-
-      // Format as YYYY.MM.DD for older posts
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      return `${year}.${month}.${day}`;
-    } catch (error) {
-      console.error('Error formatting date:', error);
-      return '';
+  const handleLoadMore = () => {
+    if (activeTab === 'feed' && hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
     }
   };
+
+  // Helpers moved outside component
 
   /**
    * Request location permission and get user's current location
@@ -455,7 +474,9 @@ const FeedHomeScreen = ({ navigation }) => {
   const renderFeedContent = () => {
     // Show loading spinner while fetching data
     // Show loading skeleton while fetching data
-    if (loading) {
+    // Show loading spinner while fetching data
+    // Show loading skeleton while fetching data
+    if (isLoading) {
       return (
         <View style={styles.feedContent}>
           {[1, 2, 3].map((key) => (
@@ -468,7 +489,7 @@ const FeedHomeScreen = ({ navigation }) => {
     // Render feed with pull-to-refresh
     return (
       <FlatList
-        data={posts}
+        data={displayPosts}
         keyExtractor={(item) => item.id}
         renderItem={({ item, index }) => (
           <View>
@@ -522,6 +543,29 @@ const FeedHomeScreen = ({ navigation }) => {
         scrollEnabled={false}
         ListHeaderComponent={
           <>
+            {/* Seasonal Banner (Feature Flag) */}
+            {showSeasonalBanner && (
+              <TouchableOpacity
+                style={{
+                  backgroundColor: colors.brand,
+                  marginHorizontal: 20,
+                  marginBottom: 16,
+                  padding: 16,
+                  borderRadius: 12,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  ...Shadows.card
+                }}
+                onPress={() => Alert.alert('Event', 'Winter Season Event Page')}
+              >
+                <View>
+                  <Text style={{ ...Typography.h4, color: '#FFF', fontWeight: 'bold' }}>{bannerTitle || 'Special Event'}</Text>
+                  <Text style={{ ...Typography.caption, color: '#FFF' }}>{bannerText || 'Check it out!'}</Text>
+                </View>
+                <Ionicons name="gift-outline" size={24} color="#FFF" />
+              </TouchableOpacity>
+            )}
 
 
             {/* Curated Collections */}
@@ -536,6 +580,13 @@ const FeedHomeScreen = ({ navigation }) => {
 
           </>
         }
+        ListFooterComponent={
+          isFetchingNextPage ? (
+            <View style={{ padding: 20, alignItems: 'center' }}>
+              <LoadingSpinner visible={true} fullScreen={false} size="small" />
+            </View>
+          ) : <View style={{ height: 40 }} />
+        }
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Text style={[styles.emptyStateText, { color: colors.textSecondary }]}>
@@ -543,6 +594,8 @@ const FeedHomeScreen = ({ navigation }) => {
             </Text>
           </View>
         }
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5}
       />
     );
   };
@@ -971,8 +1024,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   emptyStateTitle: {
-    fontSize: Typography.body.fontSize,
-    fontWeight: Typography.h3.fontWeight,
+    ...Typography.h3,
     color: Colors.stone600,
     marginTop: 16,
     textAlign: 'center',
@@ -1014,8 +1066,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.stone200,
   },
   settingsButtonText: {
-    fontSize: Typography.button.fontSize,
-    fontWeight: Typography.button.fontWeight,
+    ...Typography.button,
     color: Colors.stone700,
   },
 

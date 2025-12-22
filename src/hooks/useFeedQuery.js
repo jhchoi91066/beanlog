@@ -1,36 +1,46 @@
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { getPersonalizedFeed, getRecentReviews } from '../services/feedService';
 
 export const FEED_QUERY_KEY = 'feed';
 
 /**
- * Custom hook to fetch personalized feed
+ * Custom hook to fetch personalized feed with pagination
  * @param {Object} preferences - User data preferences
  * @param {Object} filter - Active flavor filter
- * @param {boolean} enabled - Whether query should run (e.g. strict mode)
+ * @param {boolean} enabled - Whether query should run
  */
 export const useFeedQuery = (preferences, filter, enabled = true) => {
-    return useQuery({
+    return useInfiniteQuery({
         queryKey: [FEED_QUERY_KEY, preferences, filter],
-        queryFn: async () => {
-            // Logic from FeedHomeScreen: prioritize personalization
-            // If no prefs and no filter, getRecentReviews
-            // Otherwise getPersonalizedFeed
+        queryFn: async ({ pageParam = null }) => {
+            const limit = 10;
             const hasFilter = filter && Object.values(filter).some(v => v > 0);
 
+            // Fetch Logic
+            let result;
             if (!preferences && !hasFilter) {
-                return getRecentReviews(20);
+                result = await getRecentReviews(limit, pageParam);
+            } else {
+                result = await getPersonalizedFeed(preferences || {}, limit, filter, pageParam);
+
+                // Fallback for empty personalized feed (only on first page)
+                if ((!result.reviews || result.reviews.length === 0) && !hasFilter && !pageParam) {
+                    result = await getRecentReviews(limit, pageParam);
+                }
             }
 
-            const reviews = await getPersonalizedFeed(preferences || {}, 20, filter);
-
-            if (reviews.length === 0 && !hasFilter) {
-                return getRecentReviews(20);
-            }
-            return reviews;
+            return result; // { reviews, lastVisible }
         },
-        enabled: enabled, // Only run when enabled is true
-        staleTime: 1000 * 60 * 5, // Data is fresh for 5 minutes (no refetch)
-        gcTime: 1000 * 60 * 30, // Keep in cache for 30 mins
+        initialPageParam: null,
+        getNextPageParam: (lastPage) => {
+            // lastPage is { reviews, lastVisible }
+            if (!lastPage || !lastPage.lastVisible || lastPage.reviews.length === 0) {
+                return undefined; // No more pages
+            }
+            return lastPage.lastVisible;
+        },
+        enabled: enabled,
+        staleTime: 1000 * 60 * 5,
+        gcTime: 1000 * 60 * 30,
     });
 };

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Alert, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Typography } from '../constants';
+import { Colors, Typography, Shadows } from '../constants';
 import CoffeeCard from '../components/CoffeeCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useAuth } from '../contexts/AuthContext';
@@ -171,11 +171,7 @@ const styles = StyleSheet.create({
         padding: 20,
         marginBottom: 24,
         borderWidth: 1,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 2,
+        ...Shadows.card,
     },
     userInfo: {
         flexDirection: 'row',
@@ -192,12 +188,12 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     userName: {
-        fontSize: 20,
-        fontWeight: '700',
+        ...Typography.h2,
+        fontWeight: '700', // Keep bold for name
         marginBottom: 4,
     },
     userTitle: {
-        fontSize: 14,
+        ...Typography.caption,
     },
     followButton: {
         paddingHorizontal: 16,
@@ -205,8 +201,7 @@ const styles = StyleSheet.create({
         borderRadius: 20,
     },
     followButtonText: {
-        fontSize: 14,
-        fontWeight: '600',
+        ...Typography.buttonSmall,
     },
     statsContainer: {
         flexDirection: 'row',
@@ -218,7 +213,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     statValue: {
-        fontSize: 18,
+        ...Typography.h3,
         fontWeight: '700',
         marginBottom: 4,
     },
@@ -230,8 +225,7 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.stone200,
     },
     sectionTitle: {
-        fontSize: 18,
-        fontWeight: '700',
+        ...Typography.h3,
         marginBottom: 16,
     },
     emptyContainer: {
