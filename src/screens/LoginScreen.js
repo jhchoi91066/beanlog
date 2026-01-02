@@ -6,6 +6,7 @@ import { View, Text, StyleSheet, TextInput, KeyboardAvoidingView, Platform, Scro
 import { CustomButton, LoadingSpinner } from '../components';
 import { Colors, Typography } from '../constants';
 import { useAuth } from '../contexts';
+import { isDisplayNameAvailable } from '../services/userService';
 
 const LoginScreen = () => {
   const { signInWithEmail, signUpWithEmail } = useAuth();
@@ -16,6 +17,9 @@ const LoginScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [birthYear, setBirthYear] = useState('');
+  const [birthMonth, setBirthMonth] = useState('');
+  const [region, setRegion] = useState('');
 
   const handleEmailSignIn = async () => {
     // Trim whitespace from inputs
@@ -59,7 +63,7 @@ const LoginScreen = () => {
     const trimmedPassword = password.trim();
     const trimmedDisplayName = displayName.trim();
 
-    if (!trimmedEmail || !trimmedPassword || !trimmedDisplayName) {
+    if (!trimmedEmail || !trimmedPassword || !trimmedDisplayName || !birthYear || !birthMonth || !region) {
       Alert.alert('오류', '모든 정보를 입력해주세요.');
       return;
     }
@@ -76,9 +80,20 @@ const LoginScreen = () => {
       return;
     }
 
+    const birthDate = `${birthYear}-${birthMonth.padStart(2, '0')}`;
+
     try {
       setLoading(true);
-      await signUpWithEmail(trimmedEmail, trimmedPassword, trimmedDisplayName);
+
+      // 닉네임 중복 확인
+      const isAvailable = await isDisplayNameAvailable(trimmedDisplayName);
+      if (!isAvailable) {
+        Alert.alert('중복된 닉네임', '이미 사용 중인 닉네임입니다. 다른 이름을 입력해주세요.');
+        setLoading(false);
+        return;
+      }
+
+      await signUpWithEmail(trimmedEmail, trimmedPassword, trimmedDisplayName, birthDate, region);
       Alert.alert('회원가입 성공', '환영합니다!');
     } catch (error) {
       console.error('Email Sign-Up Error:', error);
@@ -114,14 +129,44 @@ const LoginScreen = () => {
           {/* Login Form */}
           <View style={styles.formContainer}>
             {isSignUp && (
-              <TextInput
-                style={styles.input}
-                placeholder="닉네임"
-                placeholderTextColor={Colors.textSecondary}
-                value={displayName}
-                onChangeText={setDisplayName}
-                autoCapitalize="none"
-              />
+              <>
+                <TextInput
+                  style={styles.input}
+                  placeholder="닉네임"
+                  placeholderTextColor={Colors.textSecondary}
+                  value={displayName}
+                  onChangeText={setDisplayName}
+                  autoCapitalize="none"
+                />
+                <View style={styles.row}>
+                  <TextInput
+                    style={[styles.input, { flex: 1.5, marginRight: 8 }]}
+                    placeholder="출생 연도 (1995)"
+                    placeholderTextColor={Colors.textSecondary}
+                    value={birthYear}
+                    onChangeText={setBirthYear}
+                    keyboardType="numeric"
+                    maxLength={4}
+                  />
+                  <TextInput
+                    style={[styles.input, { flex: 1 }]}
+                    placeholder="월 (05)"
+                    placeholderTextColor={Colors.textSecondary}
+                    value={birthMonth}
+                    onChangeText={setBirthMonth}
+                    keyboardType="numeric"
+                    maxLength={2}
+                  />
+                </View>
+                <TextInput
+                  style={styles.input}
+                  placeholder="거주 지역 (예: 성수동, 강남구)"
+                  placeholderTextColor={Colors.textSecondary}
+                  value={region}
+                  onChangeText={setRegion}
+                  autoCapitalize="none"
+                />
+              </>
             )}
             <TextInput
               style={styles.input}
@@ -212,6 +257,10 @@ const styles = StyleSheet.create({
     ...Typography.body,
     color: Colors.textPrimary,
     backgroundColor: Colors.background,
+  },
+  row: {
+    flexDirection: 'row',
+    marginBottom: 0,
   },
   button: {
     marginBottom: 12,

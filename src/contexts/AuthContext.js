@@ -103,13 +103,15 @@ export const AuthProvider = ({ children }) => {
    * @param {string} password - 비밀번호
    * @param {string} displayName - 닉네임
    */
-  const signUpWithEmail = async (email, password, displayName) => {
+  const signUpWithEmail = async (email, password, displayName, birthDate, region) => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       // Firestore에 유저 정보 생성
       await createUser(userCredential.user.uid, {
         email,
-        displayName: displayName || '익명'
+        displayName: displayName || '익명',
+        birthDate: birthDate || null,
+        region: region || null
       });
     } catch (error) {
       console.error('Error signing up with email:', error);

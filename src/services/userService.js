@@ -1,7 +1,7 @@
 // User Service - Firestore 유저 데이터 관리
 // 문서 참조: The Foundation - Firestore 스키마
 
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, serverTimestamp, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, serverTimestamp, collection, getDocs, query, where, limit } from 'firebase/firestore';
 import { db } from './firebase';
 
 /**
@@ -18,6 +18,8 @@ export const createUser = async (uid, userData) => {
     const userDoc = {
       email: userData.email,
       displayName: userData.displayName,
+      birthDate: userData.birthDate || null, // YYYY-MM
+      region: userData.region || null,
       createdAt: serverTimestamp()
     };
 
@@ -53,6 +55,24 @@ export const getUserById = async (uid) => {
     };
   } catch (error) {
     console.error('Error fetching user:', error);
+    throw error;
+  }
+};
+
+/**
+ * 닉네임 중복 확인
+ * @param {string} displayName - 확인할 닉네임
+ * @returns {Promise<boolean>} 사용 가능 여부 (true: 사용 가능, false: 중복)
+ */
+export const isDisplayNameAvailable = async (displayName) => {
+  try {
+    const usersRef = collection(db, 'users');
+    const q = query(usersRef, where('displayName', '==', displayName), limit(1));
+    const snapshot = await getDocs(q);
+
+    return snapshot.empty; // 비어있으면 사용 가능
+  } catch (error) {
+    console.error('Error checking nickname availability:', error);
     throw error;
   }
 };
