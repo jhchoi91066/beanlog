@@ -584,6 +584,40 @@ const WriteReviewScreen = ({ navigation, route }) => {
             이 커피의 맛을 기록해보세요
           </Text>
 
+          {/* Flavor Presets for < 30s Review */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ marginBottom: 16 }}
+            contentContainerStyle={{ gap: 8 }}
+          >
+            {[
+              { name: '고소한 견과류', acidity: 2, sweetness: 4, body: 4, bitterness: 3, aroma: 4, tags: ['고소한', '다크 초콜릿', '견과류'] },
+              { name: '화사한 산미', acidity: 5, sweetness: 4, body: 2, bitterness: 1, aroma: 5, tags: ['상큼한', '꽃향기', '시트러스'] },
+              { name: '깔끔한 밸런스', acidity: 3, sweetness: 3, body: 3, bitterness: 2, aroma: 4, tags: ['부드러운', '깔끔한'] },
+              { name: '묵직한 다크', acidity: 1, sweetness: 3, body: 5, bitterness: 5, aroma: 3, tags: ['묵직한', '카카오', '스모키'] },
+            ].map((preset) => (
+              <TouchableOpacity
+                key={preset.name}
+                style={[
+                  styles.presetChip,
+                  { backgroundColor: colors.stone100, borderColor: colors.stone200, borderWidth: 1 }
+                ]}
+                onPress={() => {
+                  setAcidity(preset.acidity);
+                  setSweetness(preset.sweetness);
+                  setBody(preset.body);
+                  setBitterness(preset.bitterness);
+                  setAroma(preset.aroma);
+                  setSelectedTags(preset.tags);
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                }}
+              >
+                <Text style={{ fontSize: 12, color: colors.textPrimary, fontWeight: '600' }}>{preset.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
           {/* Radar Chart */}
           <View style={styles.flavorVisualizationContainer}>
             <View style={{ alignItems: 'center', paddingVertical: 10 }}>
@@ -1039,6 +1073,12 @@ const styles = StyleSheet.create({
     fontWeight: Typography.label.fontWeight,
     color: Colors.stone700,
     marginBottom: 12,
+  },
+  presetChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 4,
   },
 
   // Flavor Visualization

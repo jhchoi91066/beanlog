@@ -8,12 +8,18 @@ import { getReviewsByCafe } from './reviewService';
 /**
  * Create a new cafe
  * @param {Object} cafeData - Cafe data
+ * @param {boolean} isCurated - Whether this is a curated/verified cafe
  * @returns {Promise<string>} New cafe ID
  */
-export const createCafe = async (cafeData) => {
+export const createCafe = async (cafeData, isCurated = false) => {
   try {
     const cafesRef = collection(db, 'cafes');
-    const docRef = await addDoc(cafesRef, cafeData);
+    const dataWithMetadata = {
+      ...cafeData,
+      isCurated: isCurated,
+      createdAt: new Date(),
+    };
+    const docRef = await addDoc(cafesRef, dataWithMetadata);
     return docRef.id;
   } catch (error) {
     console.error('Error creating cafe:', error);
@@ -65,7 +71,54 @@ export const getCafeById = async (cafeId) => {
 };
 
 /**
- * 지역별 카페 필터링
+ * 지역별 카페 필터링 (구 단위 등 상세 지역)
+ * @param {string} district - 지역구 (예: "성수", "연남", "한남")
+ * @returns {Promise<Array>} 필터링된 카페 목록
+ */
+export const getCafesByDistrict = async (district) => {
+  try {
+    const cafesRef = collection(db, 'cafes');
+    const q = query(cafesRef, where('district', '==', district));
+    const snapshot = await getDocs(q);
+
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  } catch (error) {
+    console.error('Error fetching cafes by district:', error);
+    throw error;
+  }
+};
+
+/**
+ * 큐레이션된 카페 목록만 가져오기
+ * @param {string} district - (선택) 특정 지역의 큐레이션 카페
+ * @returns {Promise<Array>} 큐레이션된 카페 목록
+ */
+export const getCuratedCafes = async (district = null) => {
+  try {
+    const cafesRef = collection(db, 'cafes');
+    let q;
+    if (district) {
+      q = query(cafesRef, where('isCurated', '==', true), where('district', '==', district));
+    } else {
+      q = query(cafesRef, where('isCurated', '==', true));
+    }
+    const snapshot = await getDocs(q);
+
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  } catch (error) {
+    console.error('Error fetching curated cafes:', error);
+    throw error;
+  }
+};
+
+/**
+ * 지역별 카페 필터링 (locationTags 기반)
  * @param {string} locationTag - 지역 태그 (예: "성수", "연남")
  * @returns {Promise<Array>} 필터링된 카페 목록
  */

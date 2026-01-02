@@ -350,15 +350,24 @@ const SearchScreen = ({ navigation, route }) => {
         activeOpacity={0.7}
       >
         <View style={styles.cafeResultContent}>
-          <View style={[styles.cafeResultIcon, { backgroundColor: isLocal ? Colors.amber100 : colors.stone100 }]}>
-            <Ionicons name={isLocal ? "ribbon" : "cafe"} size={20} color={isLocal ? Colors.amber600 : colors.textSecondary} />
+          <View style={[styles.cafeResultIcon, { backgroundColor: item.isCurated ? Colors.amber100 : (isLocal ? Colors.stone100 : colors.stone50) }]}>
+            <Ionicons
+              name={item.isCurated ? "ribbon" : (isLocal ? "cafe" : "search")}
+              size={20}
+              color={item.isCurated ? Colors.amber600 : colors.textSecondary}
+            />
           </View>
           <View style={styles.cafeResultText}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Text style={[styles.cafeResultName, { color: colors.textPrimary }]}>{item.name}</Text>
-              {isLocal && (
+              {item.isCurated && (
                 <View style={{ backgroundColor: Colors.amber100, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                  <Text style={{ fontSize: 10, color: Colors.amber700, fontWeight: '600' }}>인증됨</Text>
+                  <Text style={{ fontSize: 10, color: Colors.amber700, fontWeight: '700' }}>큐레이션</Text>
+                </View>
+              )}
+              {isLocal && !item.isCurated && (
+                <View style={{ backgroundColor: Colors.stone100, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                  <Text style={{ fontSize: 10, color: Colors.stone600, fontWeight: '600' }}>기록됨</Text>
                 </View>
               )}
             </View>

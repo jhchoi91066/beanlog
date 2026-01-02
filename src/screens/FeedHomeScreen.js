@@ -27,7 +27,7 @@ import CollectionSection from '../components/CollectionSection';
 import CoffeeCardSkeleton from '../components/CoffeeCardSkeleton';
 import NaverMapView from '../components/NaverMapView';
 import { getRecentReviews, getReviewsByTag, getPersonalizedFeed, getTopRatedReviews } from '../services/feedService';
-import { getAllCafes } from '../services/cafeService';
+import { getAllCafes, getCuratedCafes } from '../services/cafeService';
 import { getAllCollections } from '../services/collectionService';
 import { useTheme } from '../contexts';
 import { useAuth } from '../contexts/AuthContext';
@@ -91,16 +91,18 @@ const transformReviewToPost = (review) => {
       aroma: review.aroma || 0,
     },
     author: {
+      id: review.userId,
       name: review.userDisplayName || '익명',
       avatar: review.userPhotoURL || null,
-      level: 'Barista',
+      level: review.userId?.startsWith('persona') ? 'Curator' : 'Barista',
     },
     description: review.comment || '',
-    likes: 0,
-    comments: 0,
+    likes: review.likes || 0,
+    comments: review.comments || 0,
     date: formatDateRelative(review.createdAt),
     cafeId: review.cafeId,
     score: review.score,
+    isCurated: review.userId?.startsWith('persona') // Check if author is a persona
   };
 };
 
@@ -146,17 +148,6 @@ const FeedHomeScreen = ({ navigation }) => {
   // Load feed data on mount and when filter changes
   useEffect(() => {
     loadPreferencesAndCollections();
-
-    // Prepare featured cafes from mock posts
-    const featured = MOCK_POSTS.slice(0, 3).map(post => ({
-      id: post.id,
-      name: post.cafeName,
-      address: post.location,
-      thumbnailUrl: post.imageUrl,
-      locationTags: post.tags,
-      rating: post.rating
-    }));
-    setFeaturedCafes(featured);
   }, []);
 
   // Request location when "내 주변" tab is activated
@@ -167,7 +158,7 @@ const FeedHomeScreen = ({ navigation }) => {
   }, [activeTab]);
 
   /**
-   * Load user preferences and collections
+   * Load user preferences, collections and curated cafes
    */
   const loadPreferencesAndCollections = async () => {
     try {
@@ -176,8 +167,36 @@ const FeedHomeScreen = ({ navigation }) => {
         setUserPreferences(JSON.parse(storedPrefs));
       }
 
+      // 1. Fetch collections
       const fetchedCollections = await getAllCollections();
       setCollections(fetchedCollections);
+
+      // 2. Fetch curated cafes for the carousel (Hyper-Local Moat)
+      const curatedCafesData = await getCuratedCafes();
+
+      if (curatedCafesData.length > 0) {
+        const featured = curatedCafesData.map(cafe => ({
+          id: cafe.id,
+          name: cafe.name,
+          address: cafe.address,
+          thumbnailUrl: cafe.thumbnailUrl || 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?q=80&w=1000&auto=format&fit=crop',
+          locationTags: cafe.locationTags || [],
+          rating: cafe.rating || 5.0,
+          isCurated: true
+        }));
+        setFeaturedCafes(featured);
+      } else {
+        // Fallback to mock if none found
+        const featured = MOCK_POSTS.slice(0, 3).map(post => ({
+          id: post.id,
+          name: post.cafeName,
+          address: post.location,
+          thumbnailUrl: post.imageUrl,
+          locationTags: post.tags,
+          rating: post.rating
+        }));
+        setFeaturedCafes(featured);
+      }
     } catch (error) {
       console.error('Error loading initial data:', error);
     }

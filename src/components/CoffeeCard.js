@@ -244,7 +244,14 @@ const CoffeeCard = ({ post, onPress, onCommentPress, index = 0 }) => {
         {/* Header Section */}
         <View style={styles.header}>
           <View style={styles.titleContainer}>
-            <Text style={[styles.coffeeName, { color: colors.stone800 }]}>{post.coffeeName}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={[styles.coffeeName, { color: colors.stone800 }]}>{post.coffeeName}</Text>
+              {post.isCurated && (
+                <View style={{ backgroundColor: Colors.amber100, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                  <Text style={{ fontSize: 10, color: Colors.amber700, fontWeight: '700' }}>큐레이션</Text>
+                </View>
+              )}
+            </View>
             <View style={styles.locationContainer}>
               <Ionicons
                 name="location-outline"
