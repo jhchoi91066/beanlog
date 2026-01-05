@@ -31,11 +31,29 @@ import { auth } from '../services/firebase';
 import { Colors, Typography } from '../constants';
 
 const PostDetailScreen = ({ route, navigation }) => {
-    const { post } = route.params;
+    const { post } = route.params || {};
+
+    // Safety check for post data
+    if (!post) {
+        return (
+            <SafeAreaView style={styles.container}>
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                        <Ionicons name="arrow-back" size={24} color={Colors.text} />
+                    </TouchableOpacity>
+                </View>
+                <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+                    <Ionicons name="alert-circle-outline" size={48} color={Colors.stone300} />
+                    <Text style={{ marginTop: 16, color: Colors.textSecondary }}>게시글 정보를 불러올 수 없습니다.</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
     const [isLiked, setIsLiked] = useState(post.isLiked || false);
     const [isBookmarked, setIsBookmarked] = useState(post.isBookmarked || false);
-    const [likesCount, setLikesCount] = useState(post.likes);
-    const [commentsCount, setCommentsCount] = useState(post.comments);
+    const [likesCount, setLikesCount] = useState(post.likes || 0);
+    const [commentsCount, setCommentsCount] = useState(post.comments || 0);
     const [commentText, setCommentText] = useState('');
     const [comments, setComments] = useState([]);
     const [loadingComments, setLoadingComments] = useState(true);
@@ -279,10 +297,16 @@ const PostDetailScreen = ({ route, navigation }) => {
                     <Text style={styles.title}>{post.title}</Text>
 
                     <View style={styles.authorRow}>
-                        <Image source={{ uri: post.author.avatar }} style={styles.avatar} />
+                        {post.author?.avatar ? (
+                            <Image source={{ uri: post.author.avatar }} style={styles.avatar} />
+                        ) : (
+                            <View style={[styles.avatar, { backgroundColor: Colors.stone200, justifyContent: 'center', alignItems: 'center' }]}>
+                                <Ionicons name="person" size={20} color={Colors.stone400} />
+                            </View>
+                        )}
                         <View>
-                            <Text style={styles.authorName}>{post.author.name}</Text>
-                            <Text style={styles.timeText}>{post.timeAgo}</Text>
+                            <Text style={styles.authorName}>{post.author?.name || '익명'}</Text>
+                            <Text style={styles.timeText}>{post.timeAgo || '최근'}</Text>
                         </View>
                     </View>
 

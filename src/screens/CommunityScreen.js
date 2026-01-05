@@ -264,12 +264,20 @@ const CommunityScreen = ({ navigation }) => {
             >
                 <View style={styles.cardHeader}>
                     <View style={styles.authorContainer}>
-                        <Image source={{ uri: post.author.avatar }} style={[styles.avatar, { backgroundColor: colors.stone100 }]} />
+                        <View style={[styles.avatar, { backgroundColor: colors.stone100, overflow: 'hidden' }]}>
+                            {post.author?.avatar ? (
+                                <Image source={{ uri: post.author.avatar }} style={styles.avatar} />
+                            ) : (
+                                <View style={[styles.avatar, { backgroundColor: colors.stone200, justifyContent: 'center', alignItems: 'center' }]}>
+                                    <Ionicons name="person" size={20} color={colors.textTertiary} />
+                                </View>
+                            )}
+                        </View>
                         <View>
                             <View style={styles.authorRow}>
-                                <Text style={[styles.authorName, { color: colors.textPrimary }]}>{post.author.name}</Text>
+                                <Text style={[styles.authorName, { color: colors.textPrimary }]}>{post.author?.name || '익명'}</Text>
                                 <View style={[styles.badge, { backgroundColor: colors.stone100 }]}>
-                                    <Text style={[styles.badgeText, { color: colors.textSecondary }]}>{post.author.level}</Text>
+                                    <Text style={[styles.badgeText, { color: colors.textSecondary }]}>{post.author?.level || 'Barista'}</Text>
                                 </View>
                                 {post.isSolved && (
                                     <View style={styles.solvedBadge}>

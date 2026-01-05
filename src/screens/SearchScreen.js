@@ -191,7 +191,7 @@ const SearchScreen = ({ navigation, route }) => {
   };
 
   const handleCafePress = (cafe) => {
-    navigation.navigate('CafeDetail', { cafeId: cafe.id });
+    navigation.navigate('CafeDetail', { cafeId: cafe.id, cafe });
   };
 
   // Map State

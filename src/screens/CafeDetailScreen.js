@@ -65,11 +65,26 @@ const CafeDetailScreen = ({ route, navigation }) => {
     try {
       setLoading(true);
 
-      // Fetch cafe info and reviews in parallel
-      const [cafeData, reviewsData] = await Promise.all([
-        getCafeById(cafeId),
-        getReviewsByCafe(cafeId),
-      ]);
+      // Check if cafe data was passed via params (especially for Naver results)
+      const passedCafe = route.params?.cafe;
+      const isNaverResult = cafeId?.startsWith('naver_');
+
+      let cafeData = null;
+      let reviewsData = [];
+
+      if (isNaverResult && passedCafe) {
+        // Use passed data for Naver results and skip Firestore for cafe info
+        cafeData = passedCafe;
+        // reviewsData will remain empty for Naver results
+      } else {
+        // Fetch cafe info and reviews in parallel for DB cafes
+        const [fetchedCafe, fetchedReviews] = await Promise.all([
+          getCafeById(cafeId).catch(() => null), // Catch "not found" or other errors
+          getReviewsByCafe(cafeId).catch(() => []),
+        ]);
+        cafeData = fetchedCafe || passedCafe; // Fallback to passedCafe if DB fetch fails
+        reviewsData = fetchedReviews;
+      }
 
       setCafe(cafeData);
       setReviews(reviewsData);
@@ -86,10 +101,8 @@ const CafeDetailScreen = ({ route, navigation }) => {
         const hasReviewPhotos = reviewsData.some(r => r.photoUrls && r.photoUrls.length > 0);
 
         if (!hasReviewPhotos) {
-          // Use placeholder logic instead of Naver Image Search
+          // Use placeholder logic
           const { getCafePlaceholderImage } = require('../utils/imageUtils');
-          // We don't have tags here easily unless we aggregate from reviews, 
-          // but we can use the name.
           const placeholder = getCafePlaceholderImage([], cafeData.name);
           setCafe(prev => ({ ...prev, thumbnailUrl: placeholder }));
         } else {
@@ -109,7 +122,6 @@ const CafeDetailScreen = ({ route, navigation }) => {
 
           // Find matching result by address
           const match = naverResults.find(result => {
-            // Simple inclusion check for address
             const addr1 = (cafeData.address || '').replace(/\s/g, '');
             const addr2 = (result.address || '').replace(/\s/g, '');
             return addr1.includes(addr2) || addr2.includes(addr1);
@@ -120,7 +132,7 @@ const CafeDetailScreen = ({ route, navigation }) => {
               ...prev,
               phoneNumber: prev.phoneNumber || match.telephone,
               naverLink: prev.naverLink || match.link,
-              description: prev.description || match.description, // Also fill description if empty
+              description: prev.description || match.description,
             }));
           }
         } catch (err) {
@@ -128,9 +140,7 @@ const CafeDetailScreen = ({ route, navigation }) => {
         }
       }
     } catch (error) {
-      // Firebase is not configured yet, so service calls will fail
-      // Show empty state when error occurs
-      console.log('Service call failed (expected until Firebase is configured):', error.message);
+      console.log('fetchCafeData error:', error.message);
       setCafe(null);
       setReviews([]);
     } finally {

@@ -57,7 +57,7 @@ export const getCafeById = async (cafeId) => {
     const snapshot = await getDoc(cafeRef);
 
     if (!snapshot.exists()) {
-      throw new Error('Cafe not found');
+      return null;
     }
 
     return {

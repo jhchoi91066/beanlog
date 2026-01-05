@@ -48,7 +48,7 @@ const CollectionDetailScreen = ({ navigation, route }) => {
                 renderItem={({ item }) => (
                     <CoffeeCard
                         post={item}
-                        onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
+                        onPress={() => navigation.navigate('PostDetail', { post: item })}
                     />
                 )}
                 ListHeaderComponent={

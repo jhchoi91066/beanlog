@@ -146,7 +146,7 @@ const UserProfileScreen = ({ navigation, route }) => {
                         <CoffeeCard
                             key={review.id}
                             post={review}
-                            onPress={() => navigation.navigate('PostDetail', { postId: review.id })}
+                            onPress={() => navigation.navigate('PostDetail', { post: review })}
                         />
                     ))
                 ) : (

@@ -37,7 +37,7 @@ const CollectionSection = ({ collection, navigation }) => {
                     <View style={styles.cardWrapper}>
                         <CoffeeCard
                             post={item}
-                            onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
+                            onPress={() => navigation.navigate('PostDetail', { post: item })}
                             compact={true} // Use compact mode for horizontal scroll
                         />
                     </View>
