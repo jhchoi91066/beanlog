@@ -175,15 +175,18 @@ const FeedHomeScreen = ({ navigation }) => {
       const curatedCafesData = await getCuratedCafes();
 
       if (curatedCafesData.length > 0) {
-        const featured = curatedCafesData.map(cafe => ({
-          id: cafe.id,
-          name: cafe.name,
-          address: cafe.address,
-          thumbnailUrl: cafe.thumbnailUrl || 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?q=80&w=1000&auto=format&fit=crop',
-          locationTags: cafe.locationTags || [],
-          rating: cafe.rating || 5.0,
-          isCurated: true
-        }));
+        const featured = curatedCafesData
+          .sort(() => 0.5 - Math.random()) // Randomize selection
+          .slice(0, 5) // Limit to 5 items
+          .map(cafe => ({
+            id: cafe.id,
+            name: cafe.name,
+            address: cafe.address,
+            thumbnailUrl: cafe.thumbnailUrl || 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?q=80&w=1000&auto=format&fit=crop',
+            locationTags: cafe.locationTags || [],
+            rating: cafe.rating || 5.0,
+            isCurated: true
+          }));
         setFeaturedCafes(featured);
       } else {
         // Fallback to mock if none found
